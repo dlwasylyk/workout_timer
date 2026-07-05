@@ -100,6 +100,22 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
 
 #controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; width: 100%; }
 #controls-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+#mini-spotify-bar {
+  display: flex; align-items: center; gap: 4px; width: 100%;
+  background: #21252b; border: 1px solid #333a44; border-radius: 10px;
+  padding: 4px 6px; margin-top: 10px;
+}
+#mini-spotify-bar button {
+  background: transparent; color: #e6e9ed; min-height: 34px; min-width: 34px;
+  padding: 4px 8px; font-size: 15px; border-radius: 8px; flex-shrink: 0;
+}
+#mini-spotify-bar button:active:not(:disabled) { background: #2d333c; transform: scale(0.94); }
+#mini-spotify-bar button:disabled { color: #565d66; }
+#mini-spotify-label {
+  flex: 1; min-width: 0; font-size: 11px; color: #9aa5b1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; padding: 0 4px;
+}
 #start-btn { background: var(--strength); color: #14100a; font-size: 20px; padding: 18px; width: 100%; }
 .btn-pause { background: var(--warmup); }
 .btn-skip { background: var(--surface2); }
@@ -178,6 +194,13 @@ select, input[type=range] { width: 100%; }
 .form-grid .full { grid-column: 1 / -1; }
 .form-grid label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 3px; }
 
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(6,7,9,.88); z-index: 250;
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal-overlay .panel { width: 100%; max-width: 420px; margin-bottom: 0; }
+
 /* ============================= HISTORY ============================= */
 .history-entry { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 .history-entry .h-date { font-weight: 700; font-size: 14px; }
@@ -248,6 +271,13 @@ select, input[type=range] { width: 100%; }
       <button id="pause-btn" class="btn-pause">⏸ PAUSE</button>
       <button id="skip-btn" class="btn-skip">⏭ SKIP</button>
       <button id="stop-btn" class="btn-stop">■ STOP</button>
+    </div>
+
+    <div id="mini-spotify-bar">
+      <button id="mini-spotify-prev" title="Previous track" disabled>⏮</button>
+      <button id="mini-spotify-playpause" title="Play/Pause" disabled>▶</button>
+      <button id="mini-spotify-next" title="Next track" disabled>⏭</button>
+      <span id="mini-spotify-label">Connect Spotify in Settings for playback controls</span>
     </div>
 
     <button id="show-instruction-btn" class="btn-show-instruction hidden">📋 SHOW INSTRUCTION</button>
@@ -417,6 +447,52 @@ select, input[type=range] { width: 100%; }
         <input type="checkbox" id="skip-future-instructions" style="width:18px;height:18px;">
         Skip this overlay for future sets
       </label>
+    </div>
+  </div>
+
+  <!-- ============================= SEGMENT EDIT MODAL ============================= -->
+  <div id="segment-edit-modal" class="modal-overlay">
+    <div class="panel">
+      <h2 id="segment-edit-heading">Edit Segment</h2>
+      <div class="form-grid">
+        <div class="full">
+          <label for="seg-edit-name">Name</label>
+          <input type="text" id="seg-edit-name" placeholder="Segment name">
+        </div>
+        <div id="seg-edit-phase-wrap">
+          <label for="seg-edit-phase">Phase</label>
+          <select id="seg-edit-phase">
+            <option value="warmup">Warmup</option>
+            <option value="strength">Strength</option>
+            <option value="rest">Rest</option>
+            <option value="cooldown">Cooldown</option>
+          </select>
+        </div>
+        <div id="seg-edit-type-wrap">
+          <label for="seg-edit-type">Type</label>
+          <select id="seg-edit-type">
+            <option value="time">Timed</option>
+            <option value="reps">Rep-based</option>
+          </select>
+        </div>
+        <div id="seg-edit-duration-wrap" class="full">
+          <label for="seg-edit-duration">Allotted time (seconds)</label>
+          <input type="number" id="seg-edit-duration" min="1" inputmode="numeric" placeholder="e.g. 60">
+        </div>
+        <div id="seg-edit-reps-wrap" class="full hidden">
+          <label for="seg-edit-reps">Reps</label>
+          <input type="number" id="seg-edit-reps" min="1" inputmode="numeric" placeholder="e.g. 15">
+        </div>
+        <div id="seg-edit-restafter-wrap" class="full hidden">
+          <label for="seg-edit-restafter">Rest after this segment (seconds, 0 for none)</label>
+          <input type="number" id="seg-edit-restafter" min="0" inputmode="numeric" placeholder="0">
+        </div>
+      </div>
+      <p class="hint" id="seg-edit-instruction-hint" style="margin-top:8px;">Form-check screens don't have a timer — only the name can be edited here.</p>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button id="seg-edit-cancel-btn" style="flex:1;">Cancel</button>
+        <button id="seg-edit-save-btn" style="flex:1;background:var(--strength);color:#14100a;">Save</button>
+      </div>
     </div>
   </div>
 
@@ -1266,51 +1342,88 @@ function renderBuilder() {
   });
 }
 
+let editingSegIdx = undefined;
+
 function openSegmentEditor(idx) {
+  editingSegIdx = idx;
   const segs = presets[activePresetName];
   const isNew = idx === undefined;
-  const seg = isNew ? { phase: 'warmup', name: '', type: 'time', duration: 30, reps: 10, rest: 0 } : segs[idx];
+  const seg = isNew ? { phase: 'warmup', name: '', type: 'time', duration: 30, reps: 10 } : segs[idx];
+  const isInstruction = seg.type === 'instruction';
 
-  const name = prompt('Segment name:', seg.name || '');
-  if (name === null) return;
-  const phase = prompt('Phase (warmup / strength / rest / cooldown):', seg.phase || 'warmup');
-  if (phase === null) return;
-  const type = prompt('Type (time / reps):', seg.type === 'reps' ? 'reps' : 'time');
-  if (type === null) return;
-  let duration = seg.duration, reps = seg.reps;
-  if (type === 'reps') {
-    const r = prompt('Number of reps:', seg.reps || 10);
-    if (r === null) return;
-    reps = parseInt(r, 10) || 10;
-  } else {
-    const d = prompt('Duration in seconds:', seg.duration || 30);
-    if (d === null) return;
-    duration = parseInt(d, 10) || 30;
-  }
-  const restStr = prompt('Rest after this segment in seconds (0 for none):', seg.restAfter || 0);
-  const restAfter = restStr === null ? (seg.restAfter || 0) : (parseInt(restStr, 10) || 0);
+  $('#segment-edit-heading').textContent = isNew ? 'Add Segment' : 'Edit Segment';
+  $('#seg-edit-name').value = seg.name || '';
+  $('#seg-edit-phase').value = seg.phase || 'warmup';
+  $('#seg-edit-type').value = seg.type === 'reps' ? 'reps' : 'time';
+  $('#seg-edit-duration').value = seg.duration || 30;
+  $('#seg-edit-reps').value = seg.reps || 10;
+  $('#seg-edit-restafter').value = 0;
 
-  const newSeg = {
-    phase: (['warmup', 'strength', 'rest', 'cooldown'].includes(phase) ? phase : 'warmup'),
-    name: name || 'Segment',
-    type: type === 'reps' ? 'reps' : 'time',
-    announceStart: 'Begin ' + (name || 'segment'),
-    endMsg: 'Done'
-  };
-  if (newSeg.type === 'reps') { newSeg.reps = reps; newSeg.secondsPerRep = 2; }
-  else { newSeg.duration = duration; newSeg.warnings = [{ at: 10, msg: '10 seconds remaining' }]; }
+  $('#seg-edit-phase-wrap').classList.toggle('hidden', isInstruction);
+  $('#seg-edit-type-wrap').classList.toggle('hidden', isInstruction);
+  $('#seg-edit-instruction-hint').classList.toggle('hidden', !isInstruction);
+  $('#seg-edit-restafter-wrap').classList.toggle('hidden', !isNew || isInstruction);
+  updateSegEditDurationRepsVisibility();
+
+  $('#segment-edit-modal').classList.add('active');
+}
+
+function updateSegEditDurationRepsVisibility() {
+  const isInstruction = $('#seg-edit-phase-wrap').classList.contains('hidden');
+  const isReps = $('#seg-edit-type').value === 'reps';
+  $('#seg-edit-duration-wrap').classList.toggle('hidden', isInstruction || isReps);
+  $('#seg-edit-reps-wrap').classList.toggle('hidden', isInstruction || !isReps);
+}
+$('#seg-edit-type').addEventListener('change', updateSegEditDurationRepsVisibility);
+
+function closeSegmentEditor() {
+  $('#segment-edit-modal').classList.remove('active');
+  editingSegIdx = undefined;
+}
+
+function saveSegmentEditor() {
+  const segs = presets[activePresetName];
+  const isNew = editingSegIdx === undefined;
+  const name = $('#seg-edit-name').value.trim() || 'Segment';
 
   if (isNew) {
+    const phase = $('#seg-edit-phase').value;
+    const type = $('#seg-edit-type').value;
+    const newSeg = { phase, name, type, announceStart: 'Begin ' + name, endMsg: 'Done' };
+    if (type === 'reps') { newSeg.reps = parseInt($('#seg-edit-reps').value, 10) || 10; newSeg.secondsPerRep = 2; }
+    else { newSeg.duration = parseInt($('#seg-edit-duration').value, 10) || 30; newSeg.warnings = [{ at: 10, msg: '10 seconds remaining' }]; }
     segs.push(newSeg);
+    const restAfter = parseInt($('#seg-edit-restafter').value, 10) || 0;
     if (restAfter > 0) segs.push({ phase: 'rest', name: 'Rest', type: 'time', duration: restAfter,
       warnings: [{ at: 10, msg: '10 seconds remaining' }], endMsg: 'Rest over' });
   } else {
-    segs[idx] = newSeg;
+    // Mutate the existing segment in place so exercise links (SVG, instructions,
+    // set/rest pairing) survive — only name/phase/type/duration/reps change.
+    const existing = segs[editingSegIdx];
+    existing.name = name;
+    if (existing.type !== 'instruction') {
+      existing.phase = $('#seg-edit-phase').value;
+      const type = $('#seg-edit-type').value;
+      existing.type = type;
+      if (type === 'reps') {
+        existing.reps = parseInt($('#seg-edit-reps').value, 10) || 10;
+        existing.secondsPerRep = existing.secondsPerRep || 2;
+        delete existing.duration;
+      } else {
+        existing.duration = parseInt($('#seg-edit-duration').value, 10) || 30;
+        existing.warnings = existing.warnings || [{ at: 10, msg: '10 seconds remaining' }];
+        delete existing.reps;
+      }
+    }
   }
+
   saveJSON(LS_KEYS.presets, presets);
+  closeSegmentEditor();
   renderBuilder();
 }
 
+$('#seg-edit-cancel-btn').addEventListener('click', debounceClick(closeSegmentEditor));
+$('#seg-edit-save-btn').addEventListener('click', debounceClick(saveSegmentEditor));
 $('#add-segment-btn').addEventListener('click', debounceClick(() => openSegmentEditor(undefined)));
 
 $('#preset-select').addEventListener('change', e => {
@@ -1584,7 +1697,7 @@ async function initSpotifyPlayer() {
       getOAuthToken: cb => { ensureValidSpotifyToken().then(t => cb(t)); },
       volume: 0.7
     });
-    Spotify.player.addListener('ready', ({ device_id }) => { Spotify.deviceId = device_id; });
+    Spotify.player.addListener('ready', ({ device_id }) => { Spotify.deviceId = device_id; updateMiniSpotifyBar(null); });
     Spotify.player.addListener('player_state_changed', renderSpotifyState);
     Spotify.player.addListener('initialization_error', ({ message }) => setSpotifyError('Init error: ' + message));
     Spotify.player.addListener('authentication_error', ({ message }) => setSpotifyError('Auth error: ' + message));
@@ -1603,7 +1716,29 @@ function renderSpotifyState(state) {
     $('#spotify-artist-name').textContent = track.artists.map(a => a.name).join(', ');
   }
   $('#spotify-playpause').textContent = state.paused ? '▶' : '⏸';
+  updateMiniSpotifyBar(state);
 }
+
+// Small, low-profile transport row shown under the Start/Stop button on the
+// Timer screen so playback can be controlled without leaving that screen.
+function updateMiniSpotifyBar(state) {
+  const prev = $('#mini-spotify-prev'), playPause = $('#mini-spotify-playpause'),
+    next = $('#mini-spotify-next'), label = $('#mini-spotify-label');
+  const connected = !!Spotify.player;
+  prev.disabled = playPause.disabled = next.disabled = !connected;
+  if (!connected) {
+    label.textContent = 'Connect Spotify in Settings for playback controls';
+    playPause.textContent = '▶';
+    return;
+  }
+  const track = state && state.track_window && state.track_window.current_track;
+  label.textContent = track ? (track.name + ' — ' + track.artists.map(a => a.name).join(', ')) : 'Spotify connected';
+  if (state) playPause.textContent = state.paused ? '▶' : '⏸';
+}
+
+$('#mini-spotify-prev').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.previousTrack()));
+$('#mini-spotify-playpause').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.togglePlay()));
+$('#mini-spotify-next').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.nextTrack()));
 
 function setSpotifyError(msg) {
   $('#spotify-error').textContent = msg;
@@ -1627,6 +1762,7 @@ $('#spotify-disconnect-btn').addEventListener('click', debounceClick(() => {
   localStorage.removeItem(LS_KEYS.spotifyTokens);
   $('#spotify-connected').classList.add('hidden');
   $('#spotify-disconnected').classList.remove('hidden');
+  updateMiniSpotifyBar(null);
 }));
 $('#spotify-playpause').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.togglePlay()));
 $('#spotify-next').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.nextTrack()));
