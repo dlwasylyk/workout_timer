@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0d0f12">
+<title>Interval Gym Timer</title>
+<style>
+/* ============================= RESET & BASE ============================= */
+*, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overscroll-behavior-y: contain;
+  touch-action: manipulation; /* removes 300ms tap delay */
+  user-select: none;
+}
+:root {
+  --bg: #0b0d10;
+  --surface: #171b21;
+  --surface2: #1f242c;
+  --text: #f2f4f7;
+  --muted: #9aa5b1;
+  --warmup: #4A90D9;
+  --strength: #F5A623;
+  --rest: #7ED321;
+  --cooldown: #9B59B6;
+  --danger: #e74c3c;
+  --accent: var(--strength);
+  --radius: 14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+button {
+  font-family: inherit; border: none; cursor: pointer; color: var(--text);
+  background: var(--surface2); border-radius: var(--radius);
+  min-height: 44px; min-width: 44px; font-size: 16px; font-weight: 600;
+  transition: transform .08s ease, background .15s ease, opacity .15s ease;
+}
+button:active { transform: scale(0.96); }
+button:disabled { opacity: .45; cursor: default; }
+input, select, textarea {
+  font-family: inherit; background: var(--surface2); color: var(--text);
+  border: 1px solid #2c3340; border-radius: 10px; padding: 10px; font-size: 16px;
+  min-height: 44px;
+}
+a { color: var(--strength); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+#app {
+  max-width: 520px; margin: 0 auto; min-height: 100vh;
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-top); padding-bottom: var(--safe-bottom);
+  position: relative;
+}
+
+/* ============================= TOP PROGRESS BAR ============================= */
+#top-progress-wrap { height: 8px; background: var(--surface); width: 100%; flex-shrink: 0; }
+#top-progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--strength), var(--rest)); transition: width .3s ease; }
+
+/* ============================= HEADER ============================= */
+header.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--surface);
+}
+header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
+.phase-pill {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 4px 10px; border-radius: 20px; background: var(--surface2); color: var(--muted);
+}
+
+/* ============================= SCREENS ============================= */
+.screen { flex: 1; display: none; flex-direction: column; padding: 14px; padding-bottom: 90px; overflow-y: auto; }
+.screen.active { display: flex; }
+
+/* ============================= TIMER SCREEN ============================= */
+#timer-card {
+  background: var(--surface); border-radius: var(--radius); padding: 22px 18px;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  border: 2px solid var(--accent); transition: border-color .3s ease;
+  margin-bottom: 14px;
+}
+#exercise-name { font-size: clamp(24px, 7vw, 30px); font-weight: 800; margin: 0 0 6px; }
+#segment-sub { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+#big-timer { font-size: clamp(56px, 22vw, 92px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 6px 0; }
+#big-timer.reps-mode { color: var(--accent); }
+#set-indicator { font-size: 16px; font-weight: 700; color: var(--accent); margin-bottom: 6px; min-height: 20px; }
+#ring-wrap { position: relative; width: min(64vw, 260px); height: min(64vw, 260px); margin: 8px auto; }
+#ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+#ring-bg { fill: none; stroke: var(--surface2); stroke-width: 10; }
+#ring-fg { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset .25s linear, stroke .3s ease; }
+#ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+.progress-track { width: 100%; height: 10px; background: var(--surface2); border-radius: 6px; overflow: hidden; margin: 10px 0 4px; }
+.progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width .4s ease; }
+.progress-label { font-size: 12px; color: var(--muted); align-self: flex-start; }
+
+#controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; width: 100%; }
+#controls-row.three { grid-template-columns: 1fr 1fr 1fr; }
+#start-btn { background: var(--strength); color: #14100a; font-size: 20px; padding: 18px; width: 100%; }
+.btn-pause { background: var(--warmup); }
+.btn-skip { background: var(--surface2); }
+.btn-stop { background: var(--danger); color: #fff; }
+.btn-show-instruction { background: var(--surface2); width: 100%; margin-top: 10px; }
+
+#next-up { margin-top: 14px; background: var(--surface); border-radius: var(--radius); padding: 12px 14px; font-size: 13px; color: var(--muted); }
+#next-up b { color: var(--text); }
+
+#weight-log-row { width: 100%; margin-top: 10px; display: none; gap: 8px; align-items: center; }
+#weight-log-row input { flex: 1; }
+
+/* ============================= BOTTOM NAV ============================= */
+nav.bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; max-width: 520px; margin: 0 auto;
+  display: flex; background: var(--surface); border-top: 1px solid #262b33;
+  padding-bottom: var(--safe-bottom);
+  z-index: 50;
+}
+nav.bottom-nav button {
+  flex: 1; background: transparent; border-radius: 0; padding: 10px 4px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted);
+}
+nav.bottom-nav button.active { color: var(--accent); }
+nav.bottom-nav .icon { font-size: 20px; }
+
+/* ============================= INSTRUCTION OVERLAY ============================= */
+#instruction-overlay {
+  position: fixed; inset: 0; background: rgba(6,7,9,.96); z-index: 200;
+  display: none; flex-direction: column; padding: 16px; padding-top: calc(16px + var(--safe-top));
+  padding-bottom: calc(16px + var(--safe-bottom));
+}
+#instruction-overlay.active { display: flex; }
+#instruction-overlay h2 { font-size: 26px; margin: 0 0 8px; text-align: center; color: var(--strength); }
+#instruction-graphic { flex: 4; display: flex; align-items: center; justify-content: center; min-height: 0; }
+#instruction-graphic svg { width: 100%; height: 100%; max-height: 100%; }
+#instruction-text-wrap { flex: 4; overflow-y: auto; font-size: 16px; line-height: 1.5; }
+#instruction-text-wrap .mistakes { color: #ffb37a; margin-top: 10px; font-size: 14px; }
+#instruction-text-wrap .set-meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+#instruction-actions { flex: 2; display: flex; flex-direction: column; gap: 10px; justify-content: flex-end; }
+#instruction-actions .weight-row { display: flex; gap: 8px; align-items: center; }
+#instruction-actions .weight-row input { flex: 1; }
+#start-set-btn { background: var(--strength); color: #14100a; font-size: 20px; padding: 18px; }
+.skip-instruction-toggle { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--muted); }
+
+/* ============================= GENERIC PANELS ============================= */
+.panel { background: var(--surface); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.panel h2 { margin: 0 0 10px; font-size: 16px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #21262e; }
+.row:last-child { border-bottom: none; }
+.row label { font-size: 14px; }
+.row .hint { font-size: 12px; color: var(--muted); }
+.switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider-toggle { position: absolute; inset: 0; background: var(--surface2); border-radius: 20px; cursor: pointer; transition: .2s; }
+.slider-toggle::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.switch input:checked + .slider-toggle { background: var(--strength); }
+.switch input:checked + .slider-toggle::before { transform: translateX(20px); }
+select, input[type=range] { width: 100%; }
+.small-btn { padding: 8px 12px; font-size: 13px; min-height: 36px; }
+
+/* ============================= BUILDER ============================= */
+.segment-item { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.segment-item .seg-top { display: flex; justify-content: space-between; align-items: center; }
+.segment-item .seg-title { font-weight: 700; font-size: 14px; }
+.segment-item .seg-meta { font-size: 12px; color: var(--muted); }
+.segment-item .seg-actions { display: flex; gap: 6px; }
+.segment-item .seg-actions button { min-height: 32px; min-width: 32px; padding: 4px 8px; font-size: 12px; }
+.phase-tag { font-size: 10px; text-transform: uppercase; font-weight: 800; padding: 2px 6px; border-radius: 6px; margin-right: 6px; }
+.phase-tag.warmup { background: var(--warmup); color: #06121f; }
+.phase-tag.strength { background: var(--strength); color: #201400; }
+.phase-tag.rest { background: var(--rest); color: #0d1a02; }
+.phase-tag.cooldown { background: var(--cooldown); color: #1b0b23; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.form-grid .full { grid-column: 1 / -1; }
+.form-grid label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 3px; }
+
+/* ============================= HISTORY ============================= */
+.history-entry { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.history-entry .h-date { font-weight: 700; font-size: 14px; }
+.history-entry .h-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.history-entry ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+
+/* ============================= SPOTIFY ============================= */
+.spotify-banner {
+  background: linear-gradient(135deg, #1DB95433, #1DB95411); border: 1px solid #1DB95466;
+  border-radius: 12px; padding: 12px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.spotify-now-playing { display: flex; align-items: center; gap: 10px; }
+.spotify-controls { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.spotify-controls button { flex: 1; }
+.playlist-quick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.playlist-quick button { flex: 1 1 auto; font-size: 12px; padding: 8px 10px; min-height: 38px; }
+.search-results { max-height: 200px; overflow-y: auto; margin-top: 8px; }
+.search-result-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; border-bottom: 1px solid #262b33; font-size: 13px; }
+.search-result-item button { padding: 6px 10px; font-size: 12px; min-height: 32px; }
+
+/* ============================= TOASTS ============================= */
+#toast-wrap { position: fixed; top: calc(10px + var(--safe-top)); left: 0; right: 0; z-index: 999; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+.toast { background: #000000cc; color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 13px; max-width: 90%; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="top-progress-wrap"><div id="top-progress-bar"></div></div>
+
+  <header class="app-header">
+    <h1>🏋 Gym Timer</h1>
+    <span id="phase-pill" class="phase-pill">Ready</span>
+  </header>
+
+  <!-- ============================= TIMER SCREEN ============================= -->
+  <main id="screen-timer" class="screen active">
+
+    <div id="timer-card">
+      <div id="exercise-name">Ready to start</div>
+      <div id="segment-sub">Tap START WORKOUT to begin the Morning Workout</div>
+      <div id="set-indicator"></div>
+
+      <div id="ring-wrap">
+        <svg viewBox="0 0 120 120">
+          <circle id="ring-bg" cx="60" cy="60" r="52"></circle>
+          <circle id="ring-fg" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="0"></circle>
+        </svg>
+        <div id="ring-center">
+          <div id="big-timer">00:00</div>
+        </div>
+      </div>
+
+      <div id="weight-log-row">
+        <label for="quick-weight" style="font-size:13px;color:var(--muted);">Weight (lbs)</label>
+        <input type="number" id="quick-weight" inputmode="decimal" placeholder="e.g. 25">
+      </div>
+
+      <div class="progress-label">Overall workout progress</div>
+      <div class="progress-track"><div class="progress-fill" id="overall-progress-fill"></div></div>
+    </div>
+
+    <button id="start-btn">▶ START WORKOUT</button>
+
+    <div id="controls-row" class="hidden">
+      <button id="pause-btn" class="btn-pause">⏸ PAUSE</button>
+      <button id="skip-btn" class="btn-skip">⏭ SKIP</button>
+      <button id="stop-btn" class="btn-stop">■ STOP</button>
+    </div>
+
+    <button id="show-instruction-btn" class="btn-show-instruction hidden">📋 SHOW INSTRUCTION</button>
+
+    <div id="next-up" class="hidden">Next up: <b id="next-up-name">—</b></div>
+  </main>
+
+  <!-- ============================= BUILDER SCREEN ============================= -->
+  <section id="screen-builder" class="screen">
+    <div class="panel">
+      <h2>Workout Preset</h2>
+      <div class="row">
+        <label for="preset-select">Active preset</label>
+        <select id="preset-select" style="max-width:60%;"></select>
+      </div>
+      <div class="row">
+        <label>Preset actions</label>
+        <div style="display:flex;gap:6px;">
+          <button class="small-btn" id="new-preset-btn">+ New</button>
+          <button class="small-btn" id="rename-preset-btn">Rename</button>
+          <button class="small-btn" id="delete-preset-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Segments</h2>
+      <div id="segment-list"></div>
+      <button id="add-segment-btn" style="width:100%;margin-top:8px;">+ Add Segment</button>
+    </div>
+
+    <div class="panel">
+      <h2>Import / Export</h2>
+      <div class="row" style="flex-direction:column;align-items:stretch;gap:8px;">
+        <button id="export-btn">⬇ Export JSON</button>
+        <input type="file" id="import-file" accept="application/json" class="hidden">
+        <button id="import-btn">⬆ Import JSON</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= HISTORY SCREEN ============================= -->
+  <section id="screen-history" class="screen">
+    <div class="panel">
+      <h2>Workout History</h2>
+      <div id="history-list"><p class="hint">No workouts logged yet.</p></div>
+      <button id="clear-history-btn" class="small-btn" style="margin-top:8px;">Clear History</button>
+    </div>
+  </section>
+
+  <!-- ============================= SETTINGS SCREEN ============================= -->
+  <section id="screen-settings" class="screen">
+    <div class="panel">
+      <h2>Audio & Voice</h2>
+      <div class="row">
+        <label>Voice announcements (TTS)</label>
+        <label class="switch"><input type="checkbox" id="setting-tts"><span class="slider-toggle"></span></label>
+      </div>
+      <div class="row" style="flex-direction:column;align-items:stretch;">
+        <label>Voice volume</label>
+        <input type="range" id="setting-volume" min="0" max="1" step="0.05">
+      </div>
+      <div class="row" style="flex-direction:column;align-items:stretch;">
+        <label>Voice speed</label>
+        <select id="setting-speed">
+          <option value="slow">Slow</option>
+          <option value="normal" selected>Normal</option>
+          <option value="fast">Fast</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>5-second warning chime</label>
+        <label class="switch"><input type="checkbox" id="setting-chime"><span class="slider-toggle"></span></label>
+      </div>
+      <div class="row">
+        <label>Haptic vibration on transitions</label>
+        <label class="switch"><input type="checkbox" id="setting-vibrate"><span class="slider-toggle"></span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Display & Behavior</h2>
+      <div class="row">
+        <label>Keep screen awake during workout</label>
+        <label class="switch"><input type="checkbox" id="setting-wakelock"><span class="slider-toggle"></span></label>
+      </div>
+      <div class="row">
+        <label>Show instructional overlays</label>
+        <label class="switch"><input type="checkbox" id="setting-instructions"><span class="slider-toggle"></span></label>
+      </div>
+      <div class="row">
+        <label>Skip instruction overlay (per-exercise)</label>
+        <label class="switch"><input type="checkbox" id="setting-skip-instruction"><span class="slider-toggle"></span></label>
+      </div>
+    </div>
+
+    <div class="panel" id="spotify-panel">
+      <h2>🎵 Spotify Integration (optional)</h2>
+      <div id="spotify-disconnected">
+        <p class="hint">Fully optional — the timer works with or without Spotify. Connecting requires Spotify Premium and loads Spotify's SDK from sdk.scdn.co only when you tap Connect.</p>
+        <div class="row" style="flex-direction:column;align-items:stretch;">
+          <label>Spotify Client ID</label>
+          <input type="text" id="spotify-client-id" placeholder="Your Spotify app Client ID">
+          <span class="hint">Create a free app at developer.spotify.com/dashboard and register this exact Redirect URI:</span>
+          <input type="text" id="spotify-redirect-uri" readonly>
+          <p class="hint" id="spotify-redirect-warning" style="color:#ffb37a;"></p>
+        </div>
+        <button id="spotify-connect-btn" style="width:100%;margin-top:10px;background:#1DB954;color:#04220f;">CONNECT SPOTIFY</button>
+        <p class="hint" id="spotify-error" style="color:#ff8a80;"></p>
+      </div>
+      <div id="spotify-connected" class="hidden">
+        <div class="spotify-now-playing">
+          <div>
+            <div id="spotify-track-name" style="font-weight:700;">Not playing</div>
+            <div id="spotify-artist-name" class="hint">—</div>
+          </div>
+        </div>
+        <div class="spotify-controls">
+          <button id="spotify-prev">⏮</button>
+          <button id="spotify-playpause">▶</button>
+          <button id="spotify-next">⏭</button>
+        </div>
+        <div class="row" style="flex-direction:column;align-items:stretch;">
+          <label>Volume</label>
+          <input type="range" id="spotify-volume" min="0" max="1" step="0.05" value="0.7">
+        </div>
+        <input type="text" id="spotify-search" placeholder="Search tracks or playlists...">
+        <div class="playlist-quick">
+          <button data-q="Workout Beats">Workout Beats</button>
+          <button data-q="Focus Flow">Focus Flow</button>
+          <button data-q="Upbeat Mix">Upbeat Mix</button>
+        </div>
+        <div id="spotify-search-results" class="search-results"></div>
+        <button id="spotify-disconnect-btn" class="small-btn" style="margin-top:10px;">Disconnect</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>About</h2>
+      <p class="hint">Interval Gym Timer · fully offline · v1.0<br>Works best in Brave/Chrome with screen wake lock support. If Spotify or voice features are blocked, check Brave Shields for this page (click the lion icon → allow autoplay / scripts) or try another browser.</p>
+    </div>
+  </section>
+
+  <nav class="bottom-nav">
+    <button data-tab="timer" class="active"><span class="icon">⏱</span>Timer</button>
+    <button data-tab="builder"><span class="icon">🛠</span>Builder</button>
+    <button data-tab="history"><span class="icon">📜</span>History</button>
+    <button data-tab="settings"><span class="icon">⚙</span>Settings</button>
+  </nav>
+
+  <!-- ============================= INSTRUCTION OVERLAY ============================= -->
+  <div id="instruction-overlay">
+    <h2 id="instruction-title">Exercise</h2>
+    <div id="instruction-graphic"></div>
+    <div id="instruction-text-wrap">
+      <div id="instruction-text"></div>
+      <div class="mistakes" id="instruction-mistakes"></div>
+      <div class="set-meta" id="instruction-setmeta"></div>
+    </div>
+    <div id="instruction-actions">
+      <div class="weight-row">
+        <label for="instruction-weight" style="font-size:13px;color:var(--muted);">Weight (lbs):</label>
+        <input type="number" id="instruction-weight" inputmode="decimal" placeholder="optional">
+      </div>
+      <button id="start-set-btn">START SET</button>
+      <label class="skip-instruction-toggle">
+        <input type="checkbox" id="skip-future-instructions" style="width:18px;height:18px;">
+        Skip this overlay for future sets
+      </label>
+    </div>
+  </div>
+
+  <div id="toast-wrap"></div>
+</div>
+
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   SECTION 1: SVG EXERCISE GRAPHICS
+   Simple stick-figure diagrams built as inline SVG strings.
+   Each shows body position, dumbbells, and a motion arrow.
+============================================================ */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function arrowDefs(id, color) {
+  return `<defs><marker id="${id}" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+    <path d="M0,0 L8,4 L0,8 z" fill="${color}"/></marker></defs>`;
+}
+
+const SVG_GOBLET_SQUAT = `
+<svg viewBox="0 0 200 220" xmlns="${SVG_NS}">
+  ${arrowDefs('arrSq', '#7ED321')}
+  <circle cx="95" cy="34" r="16" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="50" x2="95" y2="112" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="68" x2="75" y2="95" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="68" x2="115" y2="95" stroke="#fff" stroke-width="4"/>
+  <rect x="83" y="90" width="24" height="14" rx="2" fill="#F5A623"/>
+  <line x1="95" y1="112" x2="68" y2="145" stroke="#fff" stroke-width="4"/>
+  <line x1="68" y1="145" x2="68" y2="195" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="112" x2="122" y2="145" stroke="#fff" stroke-width="4"/>
+  <line x1="122" y1="145" x2="122" y2="195" stroke="#fff" stroke-width="4"/>
+  <line x1="68" y1="195" x2="50" y2="198" stroke="#fff" stroke-width="4"/>
+  <line x1="122" y1="195" x2="140" y2="198" stroke="#fff" stroke-width="4"/>
+  <path d="M 50 148 A 18 18 0 0 1 68 130" stroke="#F5A623" stroke-width="2" fill="none"/>
+  <text x="18" y="145" fill="#F5A623" font-size="11">90°</text>
+  <path d="M160 90 L160 145" stroke="#7ED321" stroke-width="3" marker-end="url(#arrSq)"/>
+  <text x="150" y="80" fill="#7ED321" font-size="11">down</text>
+</svg>`;
+
+const SVG_DB_ROW = `
+<svg viewBox="0 0 220 200" xmlns="${SVG_NS}">
+  ${arrowDefs('arrRow', '#7ED321')}
+  <circle cx="60" cy="50" r="15" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="60" y1="65" x2="120" y2="110" stroke="#fff" stroke-width="4"/>
+  <path d="M60 65 L120 110" stroke="#F5A623" stroke-width="1" stroke-dasharray="3,3" transform="translate(0,-2)"/>
+  <line x1="120" y1="110" x2="150" y2="150" stroke="#fff" stroke-width="4"/>
+  <line x1="150" y1="150" x2="140" y2="192" stroke="#fff" stroke-width="4"/>
+  <line x1="120" y1="110" x2="170" y2="140" stroke="#fff" stroke-width="4"/>
+  <line x1="170" y1="140" x2="180" y2="192" stroke="#fff" stroke-width="4"/>
+  <line x1="75" y1="80" x2="45" y2="120" stroke="#fff" stroke-width="4"/>
+  <circle cx="42" cy="128" r="9" fill="#F5A623"/>
+  <path d="M42 118 L42 90" stroke="#7ED321" stroke-width="3" marker-end="url(#arrRow)"/>
+  <text x="8" y="85" fill="#7ED321" font-size="11">pull up</text>
+  <text x="130" y="95" fill="#F5A623" font-size="11">flat back</text>
+</svg>`;
+
+const SVG_CHEST_PRESS = `
+<svg viewBox="0 0 220 160" xmlns="${SVG_NS}">
+  ${arrowDefs('arrPress', '#7ED321')}
+  <rect x="30" y="120" width="160" height="14" rx="3" fill="#333" stroke="#555"/>
+  <circle cx="55" cy="95" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="69" y1="102" x2="150" y2="112" stroke="#fff" stroke-width="4"/>
+  <line x1="150" y1="112" x2="185" y2="118" stroke="#fff" stroke-width="4"/>
+  <line x1="150" y1="112" x2="130" y2="130" stroke="#fff" stroke-width="4"/>
+  <line x1="85" y1="105" x2="90" y2="60" stroke="#fff" stroke-width="4"/>
+  <rect x="80" y="45" width="20" height="13" rx="2" fill="#F5A623"/>
+  <path d="M90 60 L90 30" stroke="#7ED321" stroke-width="3" marker-end="url(#arrPress)"/>
+  <text x="100" y="30" fill="#7ED321" font-size="11">press up</text>
+  <text x="95" y="100" fill="#F5A623" font-size="10">45°</text>
+</svg>`;
+
+const SVG_SHOULDER_PRESS = `
+<svg viewBox="0 0 200 220" xmlns="${SVG_NS}">
+  ${arrowDefs('arrShould', '#7ED321')}
+  <rect x="88" y="120" width="14" height="60" rx="3" fill="#333" stroke="#555"/>
+  <circle cx="95" cy="40" r="16" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="56" x2="95" y2="120" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="70" x2="65" y2="55" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="70" x2="125" y2="55" stroke="#fff" stroke-width="4"/>
+  <circle cx="60" cy="48" r="9" fill="#F5A623"/>
+  <circle cx="130" cy="48" r="9" fill="#F5A623"/>
+  <path d="M60 45 L60 15" stroke="#7ED321" stroke-width="3" marker-end="url(#arrShould)"/>
+  <path d="M130 45 L130 15" stroke="#7ED321" stroke-width="3" marker-end="url(#arrShould)"/>
+  <line x1="95" y1="120" x2="80" y2="180" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="120" x2="110" y2="180" stroke="#fff" stroke-width="4"/>
+  <text x="5" y="14" fill="#7ED321" font-size="11">press overhead</text>
+</svg>`;
+
+const SVG_FARMERS_CARRY = `
+<svg viewBox="0 0 220 200" xmlns="${SVG_NS}">
+  ${arrowDefs('arrCarry', '#7ED321')}
+  <circle cx="100" cy="35" r="15" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="50" x2="100" y2="110" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="65" x2="70" y2="110" stroke="#fff" stroke-width="4"/>
+  <rect x="60" y="108" width="18" height="12" rx="2" fill="#F5A623"/>
+  <line x1="100" y1="65" x2="130" y2="110" stroke="#fff" stroke-width="4"/>
+  <rect x="122" y="108" width="18" height="12" rx="2" fill="#F5A623"/>
+  <line x1="100" y1="110" x2="80" y2="145" stroke="#fff" stroke-width="4"/>
+  <line x1="80" y1="145" x2="95" y2="185" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="110" x2="118" y2="150" stroke="#fff" stroke-width="4"/>
+  <line x1="118" y1="150" x2="105" y2="185" stroke="#fff" stroke-width="4"/>
+  <path d="M150 150 L190 150" stroke="#7ED321" stroke-width="3" marker-end="url(#arrCarry)"/>
+  <text x="145" y="170" fill="#7ED321" font-size="11">walk forward</text>
+  <text x="60" y="20" fill="#F5A623" font-size="11">shoulders back, tall</text>
+</svg>`;
+
+/* ============================================================
+   SECTION 2: WORKOUT DATA MODEL
+============================================================ */
+const EXERCISES = [
+  { key: 'gobletSquat', name: 'Goblet Squats', reps: 15, workSeconds: 60, rest: 90, svg: SVG_GOBLET_SQUAT,
+    text: 'Hold dumbbell against chest. Lower until thighs parallel to floor. Keep chest up. Return to standing.',
+    mistakes: "Don't let knees cave inward. Keep weight on heels." },
+  { key: 'dbRow', name: 'Dumbbell Rows', reps: 15, repsNote: '(each side)', workSeconds: 60, rest: 90, svg: SVG_DB_ROW,
+    text: 'Hinge at hips with flat back. Pull weight to lower ribs. Squeeze shoulder blade. Lower controlled.',
+    mistakes: "Don't round your back. Keep neck neutral." },
+  { key: 'chestPress', name: 'Dumbbell Chest Press', reps: 15, workSeconds: 60, rest: 90, svg: SVG_CHEST_PRESS,
+    text: 'Lie flat, feet planted. Lower elbows to just below bench. Press up without locking elbows.',
+    mistakes: "Don't flare elbows to 90°. Keep at 45° angle." },
+  { key: 'shoulderPress', name: 'Seated Shoulder Press', reps: 12, workSeconds: 60, rest: 90, svg: SVG_SHOULDER_PRESS,
+    text: 'Sit with back support. Press overhead until elbows are straight. Stop at shoulder height on way down.',
+    mistakes: "Don't arch back. Don't go below shoulder height." },
+  { key: 'farmersCarry', name: "Farmer's Carry", reps: null, workSeconds: 30, rest: 90, svg: SVG_FARMERS_CARRY,
+    text: 'Stand tall, shoulders back. Hold weights at sides. Walk 50 feet or for 30 seconds. Keep core tight.',
+    mistakes: "Don't shrug shoulders. Don't lean forward." }
+];
+
+// Build the default "Morning Workout" as a flat segment list.
+function buildMorningWorkout() {
+  const segs = [];
+
+  // --- Warmup ---
+  segs.push({ phase: 'warmup', name: 'Walk to Gym', type: 'time', duration: 240,
+    announceStart: 'Begin your walk to the gym', warnings: [{ at: 30, msg: '30 seconds remaining' }] });
+  segs.push({ phase: 'warmup', name: 'Arm Circles', type: 'time', duration: 30,
+    announceStart: 'Arm circles - forward', midpointMsg: 'Arm circles - backward', endMsg: 'Done' });
+  segs.push({ phase: 'warmup', name: 'Torso Twists', type: 'time', duration: 30,
+    announceStart: 'Begin torso twists', endMsg: 'Done' });
+  segs.push({ phase: 'warmup', name: 'Bodyweight Squats', type: 'reps', reps: 10,
+    announceStart: 'Begin bodyweight squats', secondsPerRep: 3 });
+  segs.push({ phase: 'warmup', name: 'Band Pull-Aparts', type: 'reps', reps: 15,
+    announceStart: 'Begin band pull-aparts', secondsPerRep: 2 });
+  segs.push({ phase: 'warmup', name: 'Overhead Band Stretch', type: 'reps', reps: 10,
+    announceStart: 'Begin overhead band stretch', secondsPerRep: 3 });
+
+  // --- Strength: 5 exercises x 2 sets ---
+  EXERCISES.forEach((ex) => {
+    for (let set = 1; set <= 2; set++) {
+      if (set === 1) {
+        segs.push({
+          phase: 'strength', type: 'instruction', name: ex.name, exerciseKey: ex.key,
+          svg: ex.svg, text: ex.text, mistakes: ex.mistakes, reps: ex.reps, repsNote: ex.repsNote || ''
+        });
+      }
+      segs.push({
+        phase: 'strength', type: 'time', name: ex.name, exerciseKey: ex.key,
+        duration: ex.workSeconds, setNumber: set, totalSets: 2, targetReps: ex.reps,
+        announceStart: `Begin ${ex.name}`,
+        warnings: [{ at: 10, msg: '10 seconds remaining' }],
+        endMsg: `Set complete, rest for ${ex.rest} seconds`
+      });
+      segs.push({
+        phase: 'rest', type: 'time', name: 'Rest', exerciseKey: ex.key,
+        duration: ex.rest, setNumber: set, totalSets: 2,
+        warnings: [{ at: 30, msg: '30 seconds remaining' }, { at: 10, msg: '10 seconds remaining' }],
+        endMsg: set === 1 ? 'Rest over, prepare for set 2' : 'Rest over'
+      });
+    }
+  });
+
+  // --- Cooldown ---
+  segs.push({ phase: 'cooldown', name: 'Walking Cooldown', type: 'time', duration: 180,
+    announceStart: 'Begin cooldown walk', warnings: [{ at: 60, msg: '1 minute remaining' }], endMsg: 'Workout complete!' });
+
+  return segs;
+}
+
+const EXERCISE_MAP = {};
+EXERCISES.forEach(ex => EXERCISE_MAP[ex.key] = ex);
+
+/* ============================================================
+   SECTION 3: PERSISTENCE (localStorage)
+============================================================ */
+const LS_KEYS = {
+  presets: 'gymtimer_presets',
+  activePreset: 'gymtimer_active_preset',
+  settings: 'gymtimer_settings',
+  history: 'gymtimer_history',
+  spotifyTokens: 'gymtimer_spotify_tokens',
+  spotifyClientId: 'gymtimer_spotify_client_id',
+  spotifyVerifier: 'gymtimer_spotify_verifier'
+};
+
+const DEFAULT_SETTINGS = {
+  ttsEnabled: true,
+  volume: 1,
+  speed: 'normal',
+  chime: true,
+  vibrate: true,
+  wakeLock: true,
+  instructionsEnabled: true,
+  skipInstructionFuture: false
+};
+
+function loadJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (e) { return fallback; }
+}
+function saveJSON(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* storage full/unavailable */ }
+}
+
+let settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_KEYS.settings, {}));
+function saveSettings() { saveJSON(LS_KEYS.settings, settings); }
+
+let presets = loadJSON(LS_KEYS.presets, null);
+if (!presets) {
+  presets = {
+    'Morning Workout': buildMorningWorkout(),
+    'Custom': []
+  };
+  saveJSON(LS_KEYS.presets, presets);
+}
+let activePresetName = localStorage.getItem(LS_KEYS.activePreset) || 'Morning Workout';
+if (!presets[activePresetName]) activePresetName = Object.keys(presets)[0];
+
+let history = loadJSON(LS_KEYS.history, []);
+
+/* ============================================================
+   SECTION 4: DOM REFERENCES
+============================================================ */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+const el = {
+  topProgress: $('#top-progress-bar'),
+  phasePill: $('#phase-pill'),
+  exerciseName: $('#exercise-name'),
+  segmentSub: $('#segment-sub'),
+  setIndicator: $('#set-indicator'),
+  bigTimer: $('#big-timer'),
+  ringFg: $('#ring-fg'),
+  timerCard: $('#timer-card'),
+  overallFill: $('#overall-progress-fill'),
+  startBtn: $('#start-btn'),
+  controlsRow: $('#controls-row'),
+  pauseBtn: $('#pause-btn'),
+  skipBtn: $('#skip-btn'),
+  stopBtn: $('#stop-btn'),
+  showInstructionBtn: $('#show-instruction-btn'),
+  nextUp: $('#next-up'),
+  nextUpName: $('#next-up-name'),
+  weightLogRow: $('#weight-log-row'),
+  quickWeight: $('#quick-weight'),
+
+  overlay: $('#instruction-overlay'),
+  instrTitle: $('#instruction-title'),
+  instrGraphic: $('#instruction-graphic'),
+  instrText: $('#instruction-text'),
+  instrMistakes: $('#instruction-mistakes'),
+  instrSetMeta: $('#instruction-setmeta'),
+  instrWeight: $('#instruction-weight'),
+  startSetBtn: $('#start-set-btn'),
+  skipFutureCheckbox: $('#skip-future-instructions'),
+
+  toastWrap: $('#toast-wrap')
+};
+
+const RING_CIRCUMFERENCE = 2 * Math.PI * 52;
+
+/* ============================================================
+   SECTION 5: TOASTS / FALLBACK ALERTS
+============================================================ */
+function showToast(msg, ms) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  el.toastWrap.appendChild(t);
+  setTimeout(() => t.remove(), ms || 3200);
+}
+
+/* ============================================================
+   SECTION 6: AUDIO — TTS, CHIME, VIBRATION
+============================================================ */
+const RATE_MAP = { slow: 0.75, normal: 1.0, fast: 1.35 };
+let ttsAvailable = 'speechSynthesis' in window;
+let voicesReady = false;
+if (ttsAvailable) {
+  window.speechSynthesis.onvoiceschanged = () => { voicesReady = true; };
+}
+
+function speak(text) {
+  if (!text) return;
+  if (!settings.ttsEnabled) return;
+  if (!ttsAvailable) {
+    showToast('🔊 ' + text);
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel(); // avoid queued overlap on fast transitions
+    const u = new SpeechSynthesisUtterance(text);
+    u.volume = settings.volume;
+    u.rate = RATE_MAP[settings.speed] || 1.0;
+    u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
+  } catch (e) {
+    showToast('🔊 ' + text);
+  }
+}
+
+// Web Audio beep, fully offline (no audio file needed).
+let audioCtx = null;
+function beep() {
+  if (!settings.chime) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(settings.volume * 0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.35);
+  } catch (e) { /* audio unavailable, ignore */ }
+}
+
+function vibrate(pattern) {
+  if (!settings.vibrate) return;
+  if (navigator.vibrate) { try { navigator.vibrate(pattern || 150); } catch (e) {} }
+}
+
+/* ============================================================
+   SECTION 7: WAKE LOCK
+============================================================ */
+let wakeLockSentinel = null;
+async function requestWakeLock() {
+  if (!settings.wakeLock) return;
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLockSentinel = await navigator.wakeLock.request('screen');
+    wakeLockSentinel.addEventListener('release', () => { wakeLockSentinel = null; });
+  } catch (e) { /* permission denied or unsupported; ignore silently */ }
+}
+function releaseWakeLock() {
+  if (wakeLockSentinel) { wakeLockSentinel.release().catch(() => {}); wakeLockSentinel = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (engine.isRunning && !engine.isPaused) pauseWorkout(true);
+  } else if (document.visibilityState === 'visible') {
+    if (engine.isRunning) requestWakeLock();
+  }
+});
+
+/* ============================================================
+   SECTION 8: TIMER ENGINE (drift-corrected via timestamps)
+============================================================ */
+const engine = {
+  segments: [],
+  index: -1,
+  isRunning: false,
+  isPaused: false,
+  segStartTs: 0,
+  pausedAccumMs: 0,
+  pauseStartTs: 0,
+  rafHandle: null,
+  intervalHandle: null,
+  chimePlayedForSeg: false,
+  warningsFired: {},
+  midpointFired: false,
+  totalPlannedSeconds: 0,
+  elapsedPlannedSeconds: 0,
+  currentLog: [], // {exerciseKey, name, weight}
+  awaitingInstruction: false,
+  workoutName: ''
+};
+
+function estimateSegmentSeconds(seg) {
+  if (seg.type === 'time') return seg.duration;
+  if (seg.type === 'reps') return seg.reps * (seg.secondsPerRep || 2);
+  if (seg.type === 'instruction') return 0;
+  return 0;
+}
+
+function startWorkout() {
+  const segs = presets[activePresetName];
+  if (!segs || segs.length === 0) {
+    showToast('This preset has no segments. Add some in the Builder tab.');
+    return;
+  }
+  engine.segments = segs;
+  engine.index = -1;
+  engine.isRunning = true;
+  engine.isPaused = false;
+  engine.currentLog = [];
+  engine.workoutName = activePresetName;
+  engine.totalPlannedSeconds = segs.reduce((sum, s) => sum + estimateSegmentSeconds(s), 0) || 1;
+  engine.elapsedPlannedSeconds = 0;
+
+  el.startBtn.classList.add('hidden');
+  el.controlsRow.classList.remove('hidden');
+  requestWakeLock();
+  advanceToNextSegment();
+  startTickLoop();
+}
+
+function stopWorkout(save) {
+  engine.isRunning = false;
+  engine.isPaused = false;
+  clearInterval(engine.intervalHandle);
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  releaseWakeLock();
+  el.startBtn.classList.remove('hidden');
+  el.controlsRow.classList.add('hidden');
+  el.showInstructionBtn.classList.add('hidden');
+  el.nextUp.classList.add('hidden');
+  el.weightLogRow.style.display = 'none';
+  el.overlay.classList.remove('active');
+
+  if (save && engine.currentLog.length > 0) {
+    history.unshift({
+      date: new Date().toISOString(),
+      workoutName: engine.workoutName,
+      exercises: engine.currentLog.slice()
+    });
+    history = history.slice(0, 50);
+    saveJSON(LS_KEYS.history, history);
+    renderHistory();
+  }
+
+  el.exerciseName.textContent = 'Ready to start';
+  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  el.setIndicator.textContent = '';
+  el.bigTimer.textContent = '00:00';
+  setPhaseUI('idle');
+  el.overallFill.style.width = '0%';
+  el.topProgress.style.width = '0%';
+  updateRing(0);
+}
+
+function pauseWorkout(auto) {
+  if (!engine.isRunning || engine.isPaused) return;
+  engine.isPaused = true;
+  engine.pauseStartTs = performance.now();
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  el.pauseBtn.textContent = '▶ RESUME';
+  if (!auto) showToast('Paused');
+  else showToast('Auto-paused (tab hidden)');
+}
+function resumeWorkout() {
+  if (!engine.isRunning || !engine.isPaused) return;
+  engine.pausedAccumMs += performance.now() - engine.pauseStartTs;
+  engine.isPaused = false;
+  el.pauseBtn.textContent = '⏸ PAUSE';
+}
+
+function skipSegment() {
+  if (!engine.isRunning) return;
+  advanceToNextSegment();
+}
+
+function advanceToNextSegment() {
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  if (engine.index >= 0) {
+    engine.elapsedPlannedSeconds += estimateSegmentSeconds(engine.segments[engine.index]);
+  }
+  engine.index++;
+  if (engine.index >= engine.segments.length) {
+    finishWorkout();
+    return;
+  }
+  const seg = engine.segments[engine.index];
+  engine.chimePlayedForSeg = false;
+  engine.warningsFired = {};
+  engine.midpointFired = false;
+  engine.pausedAccumMs = 0;
+  engine.segStartTs = performance.now();
+
+  updatePhasePillAndCard(seg);
+  updateNextUpLabel();
+  updateOverallProgress();
+
+  if (seg.type === 'instruction') {
+    if (!settings.instructionsEnabled || settings.skipInstructionFuture) {
+      // Skip straight through with no overlay.
+      advanceToNextSegment();
+      return;
+    }
+    showInstructionOverlay(seg);
+    engine.awaitingInstruction = true;
+    el.showInstructionBtn.classList.remove('hidden');
+    return;
+  }
+
+  engine.awaitingInstruction = false;
+  el.overlay.classList.remove('active');
+
+  // Weight logging row shown during strength work segments.
+  if (seg.phase === 'strength' && seg.type === 'time') {
+    el.weightLogRow.style.display = 'flex';
+  } else {
+    el.weightLogRow.style.display = 'none';
+  }
+
+  if (seg.phase === 'strength' || seg.phase === 'rest') {
+    el.showInstructionBtn.classList.remove('hidden');
+  } else {
+    el.showInstructionBtn.classList.add('hidden');
+  }
+
+  vibrate(seg.phase === 'rest' ? 100 : [80, 40, 80]);
+  if (seg.announceStart) speak(seg.announceStart);
+}
+
+function finishWorkout() {
+  speak('Workout complete!');
+  vibrate([120, 60, 120, 60, 200]);
+  showToast('🎉 Workout complete!');
+  stopWorkout(true);
+}
+
+function updatePhasePillAndCard(seg) {
+  setPhaseUI(seg.phase);
+  let title = seg.name;
+  if (seg.repsNote) title += '';
+  el.exerciseName.textContent = title;
+
+  let sub = '';
+  if (seg.type === 'time') sub = formatDuration(seg.duration) + ' interval';
+  else if (seg.type === 'reps') sub = seg.reps + ' reps';
+  else if (seg.type === 'instruction') sub = 'Review form before starting';
+  el.segmentSub.textContent = sub;
+
+  if (seg.setNumber) {
+    el.setIndicator.textContent = 'Set ' + seg.setNumber + ' of ' + seg.totalSets +
+      (seg.targetReps ? ' · target ' + seg.targetReps + ' reps' + (EXERCISE_MAP[seg.exerciseKey] && EXERCISE_MAP[seg.exerciseKey].repsNote ? ' ' + EXERCISE_MAP[seg.exerciseKey].repsNote : '') : '');
+  } else {
+    el.setIndicator.textContent = '';
+  }
+}
+
+function setPhaseUI(phase) {
+  const colors = { warmup: '--warmup', strength: '--strength', rest: '--rest', cooldown: '--cooldown', idle: '--strength' };
+  const varName = colors[phase] || '--strength';
+  el.timerCard.style.setProperty('--accent', `var(${varName})`);
+  document.documentElement.style.setProperty('--accent', `var(${varName})`);
+  const labels = { warmup: 'Warmup', strength: 'Strength', rest: 'Rest', cooldown: 'Cooldown', idle: 'Ready' };
+  el.phasePill.textContent = labels[phase] || 'Ready';
+}
+
+function updateNextUpLabel() {
+  const next = engine.segments[engine.index + 1];
+  if (!next) { el.nextUp.classList.add('hidden'); return; }
+  el.nextUp.classList.remove('hidden');
+  el.nextUpName.textContent = next.type === 'instruction' ? next.name + ' (form check)' : next.name;
+}
+
+function updateOverallProgress() {
+  const pct = Math.min(100, (engine.elapsedPlannedSeconds / engine.totalPlannedSeconds) * 100);
+  el.overallFill.style.width = pct + '%';
+  el.topProgress.style.width = pct + '%';
+}
+
+function formatDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function updateRing(fraction) {
+  const offset = RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, fraction)));
+  el.ringFg.style.strokeDashoffset = offset;
+}
+
+/* ---- Tick loop: recomputed from timestamps each tick (drift-corrected) ---- */
+function startTickLoop() {
+  clearInterval(engine.intervalHandle);
+  engine.intervalHandle = setInterval(tick, 200);
+  tick();
+}
+
+function tick() {
+  if (!engine.isRunning || engine.awaitingInstruction) return;
+  const seg = engine.segments[engine.index];
+  if (!seg) return;
+
+  if (engine.isPaused) return;
+
+  const now = performance.now();
+  const elapsedMs = (now - engine.segStartTs) - engine.pausedAccumMs;
+  const elapsedSec = elapsedMs / 1000;
+
+  if (seg.type === 'time') {
+    const remaining = seg.duration - elapsedSec;
+    renderTimeRemaining(remaining, seg.duration);
+
+    if (seg.midpointMsg && !engine.midpointFired && elapsedSec >= seg.duration / 2) {
+      engine.midpointFired = true;
+      speak(seg.midpointMsg);
+    }
+    (seg.warnings || []).forEach(w => {
+      if (!engine.warningsFired[w.at] && remaining <= w.at && remaining > w.at - 1) {
+        engine.warningsFired[w.at] = true;
+        speak(w.msg);
+      }
+    });
+    if (!engine.chimePlayedForSeg && remaining <= 5 && remaining > 4) {
+      engine.chimePlayedForSeg = true;
+      beep();
+    }
+    if (remaining <= 0) {
+      if (seg.endMsg) speak(seg.endMsg);
+      vibrate(150);
+      advanceToNextSegment();
+    }
+  } else if (seg.type === 'reps') {
+    const secPerRep = seg.secondsPerRep || 2;
+    const totalDuration = seg.reps * secPerRep;
+    const remaining = totalDuration - elapsedSec;
+    const repsLeft = Math.max(0, Math.ceil(remaining / secPerRep));
+
+    renderRepsRemaining(repsLeft, seg.reps);
+
+    const repKey = 'rep_' + repsLeft;
+    if (repsLeft >= 1 && repsLeft <= seg.reps && !engine.warningsFired[repKey] && remaining <= (repsLeft * secPerRep) && remaining > (repsLeft * secPerRep) - 0.25) {
+      engine.warningsFired[repKey] = true;
+      if (repsLeft !== seg.reps) speak(String(repsLeft));
+    }
+    if (remaining <= 0) {
+      if (seg.endMsg) speak(seg.endMsg);
+      vibrate(150);
+      advanceToNextSegment();
+    }
+  }
+}
+
+function renderTimeRemaining(remainingSeconds, totalSeconds) {
+  const clamped = Math.max(0, remainingSeconds);
+  el.bigTimer.classList.remove('reps-mode');
+  el.bigTimer.textContent = formatDuration(clamped);
+  updateRing(1 - clamped / totalSeconds);
+}
+function renderRepsRemaining(repsLeft, totalReps) {
+  el.bigTimer.classList.add('reps-mode');
+  el.bigTimer.textContent = String(repsLeft);
+  updateRing(1 - repsLeft / totalReps);
+}
+
+/* ============================================================
+   SECTION 9: INSTRUCTION OVERLAY
+============================================================ */
+function showInstructionOverlay(seg) {
+  el.instrTitle.textContent = seg.name;
+  el.instrGraphic.innerHTML = seg.svg;
+  el.instrText.textContent = seg.text;
+  el.instrMistakes.textContent = 'Common mistakes: ' + seg.mistakes;
+  const repsLabel = seg.reps ? (seg.reps + ' reps' + (seg.repsNote ? ' ' + seg.repsNote : '')) : '30 seconds';
+  el.instrSetMeta.textContent = '2 sets × ' + repsLabel;
+  el.instrWeight.value = '';
+  el.skipFutureCheckbox.checked = settings.skipInstructionFuture;
+  el.overlay.classList.add('active');
+}
+
+function closeInstructionAndStartSet() {
+  const seg = engine.segments[engine.index];
+  const weight = el.instrWeight.value ? parseFloat(el.instrWeight.value) : null;
+  if (weight !== null && !isNaN(weight)) {
+    logExerciseWeight(seg.exerciseKey, seg.name, weight);
+  }
+  settings.skipInstructionFuture = el.skipFutureCheckbox.checked;
+  saveSettings();
+  el.overlay.classList.remove('active');
+  engine.awaitingInstruction = false;
+  advanceToNextSegment();
+}
+
+function logExerciseWeight(key, name, weight) {
+  const existing = engine.currentLog.find(l => l.exerciseKey === key);
+  if (existing) existing.weight = weight;
+  else engine.currentLog.push({ exerciseKey: key, name, weight });
+}
+
+el.startSetBtn.addEventListener('click', debounceClick(closeInstructionAndStartSet));
+el.showInstructionBtn.addEventListener('click', debounceClick(() => {
+  const seg = engine.segments[engine.index];
+  let exSeg = seg;
+  if (seg.type !== 'instruction') {
+    // Find the instruction segment for this exercise to re-show it.
+    exSeg = engine.segments.find(s => s.type === 'instruction' && s.exerciseKey === seg.exerciseKey);
+  }
+  if (!exSeg) { showToast('No instructions for this segment.'); return; }
+  const wasAwaiting = engine.awaitingInstruction;
+  engine.wasPausedForReview = !wasAwaiting && !engine.isPaused;
+  if (engine.wasPausedForReview) pauseWorkout(true);
+  showInstructionOverlay(exSeg);
+  el.startSetBtn.textContent = wasAwaiting ? 'START SET' : 'RESUME';
+  el.startSetBtn.onclick = wasAwaiting ? null : function tempResume() {
+    el.overlay.classList.remove('active');
+    if (engine.wasPausedForReview) resumeWorkout();
+    el.startSetBtn.textContent = 'START SET';
+    el.startSetBtn.onclick = null;
+    el.startSetBtn.removeEventListener('click', tempResume);
+    el.startSetBtn.addEventListener('click', debounceClick(closeInstructionAndStartSet));
+  };
+}));
+
+/* ============================================================
+   SECTION 10: DOUBLE-TAP PROTECTION
+============================================================ */
+function debounceClick(fn, wait) {
+  let last = 0;
+  return function (e) {
+    const now = Date.now();
+    if (now - last < (wait || 350)) return;
+    last = now;
+    fn(e);
+  };
+}
+
+/* ============================================================
+   SECTION 11: MAIN CONTROL BUTTON BINDINGS
+============================================================ */
+el.startBtn.addEventListener('click', debounceClick(startWorkout));
+el.pauseBtn.addEventListener('click', debounceClick(() => {
+  if (engine.isPaused) resumeWorkout(); else pauseWorkout(false);
+}));
+el.skipBtn.addEventListener('click', debounceClick(skipSegment));
+el.stopBtn.addEventListener('click', debounceClick(() => {
+  if (confirm('Stop the current workout?')) stopWorkout(true);
+}));
+el.quickWeight.addEventListener('change', () => {
+  const seg = engine.segments[engine.index];
+  if (!seg || !seg.exerciseKey) return;
+  const w = parseFloat(el.quickWeight.value);
+  if (!isNaN(w)) logExerciseWeight(seg.exerciseKey, seg.name, w);
+});
+
+/* ============================================================
+   SECTION 12: TAB NAVIGATION
+============================================================ */
+$$('.bottom-nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.bottom-nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    $$('.screen').forEach(s => s.classList.remove('active'));
+    $('#screen-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'builder') renderBuilder();
+    if (btn.dataset.tab === 'history') renderHistory();
+  });
+});
+
+/* ============================================================
+   SECTION 13: SETTINGS UI
+============================================================ */
+function initSettingsUI() {
+  $('#setting-tts').checked = settings.ttsEnabled;
+  $('#setting-volume').value = settings.volume;
+  $('#setting-speed').value = settings.speed;
+  $('#setting-chime').checked = settings.chime;
+  $('#setting-vibrate').checked = settings.vibrate;
+  $('#setting-wakelock').checked = settings.wakeLock;
+  $('#setting-instructions').checked = settings.instructionsEnabled;
+  $('#setting-skip-instruction').checked = settings.skipInstructionFuture;
+
+  $('#setting-tts').addEventListener('change', e => { settings.ttsEnabled = e.target.checked; saveSettings(); });
+  $('#setting-volume').addEventListener('input', e => { settings.volume = parseFloat(e.target.value); saveSettings(); });
+  $('#setting-speed').addEventListener('change', e => { settings.speed = e.target.value; saveSettings(); });
+  $('#setting-chime').addEventListener('change', e => { settings.chime = e.target.checked; saveSettings(); });
+  $('#setting-vibrate').addEventListener('change', e => { settings.vibrate = e.target.checked; saveSettings(); });
+  $('#setting-wakelock').addEventListener('change', e => {
+    settings.wakeLock = e.target.checked; saveSettings();
+    if (settings.wakeLock && engine.isRunning) requestWakeLock();
+    if (!settings.wakeLock) releaseWakeLock();
+  });
+  $('#setting-instructions').addEventListener('change', e => { settings.instructionsEnabled = e.target.checked; saveSettings(); });
+  $('#setting-skip-instruction').addEventListener('change', e => { settings.skipInstructionFuture = e.target.checked; saveSettings(); });
+}
+
+/* ============================================================
+   SECTION 14: WORKOUT BUILDER
+============================================================ */
+function renderPresetSelect() {
+  const sel = $('#preset-select');
+  sel.innerHTML = '';
+  Object.keys(presets).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    if (name === activePresetName) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function renderBuilder() {
+  renderPresetSelect();
+  const list = $('#segment-list');
+  list.innerHTML = '';
+  const segs = presets[activePresetName] || [];
+  if (segs.length === 0) {
+    list.innerHTML = '<p class="hint">No segments yet. Tap "+ Add Segment" below.</p>';
+    return;
+  }
+  segs.forEach((seg, idx) => {
+    const item = document.createElement('div');
+    item.className = 'segment-item';
+    const metaBits = [];
+    if (seg.type === 'time') metaBits.push(formatDuration(seg.duration || 0));
+    if (seg.type === 'reps') metaBits.push((seg.reps || 0) + ' reps');
+    if (seg.type === 'instruction') metaBits.push('form check');
+    if (seg.setNumber) metaBits.push('Set ' + seg.setNumber + '/' + seg.totalSets);
+    item.innerHTML = `
+      <div class="seg-top">
+        <div>
+          <span class="phase-tag ${seg.phase}">${seg.phase}</span>
+          <span class="seg-title">${seg.name}</span>
+          <div class="seg-meta">${metaBits.join(' · ')}</div>
+        </div>
+        <div class="seg-actions">
+          <button data-act="up" data-idx="${idx}">↑</button>
+          <button data-act="down" data-idx="${idx}">↓</button>
+          <button data-act="edit" data-idx="${idx}">✎</button>
+          <button data-act="del" data-idx="${idx}">✕</button>
+        </div>
+      </div>`;
+    list.appendChild(item);
+  });
+
+  list.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', debounceClick(() => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      const act = btn.dataset.act;
+      const segs = presets[activePresetName];
+      if (act === 'up' && idx > 0) { [segs[idx - 1], segs[idx]] = [segs[idx], segs[idx - 1]]; }
+      if (act === 'down' && idx < segs.length - 1) { [segs[idx + 1], segs[idx]] = [segs[idx], segs[idx + 1]]; }
+      if (act === 'del') { if (confirm('Delete "' + segs[idx].name + '"?')) segs.splice(idx, 1); }
+      if (act === 'edit') { openSegmentEditor(idx); return; }
+      saveJSON(LS_KEYS.presets, presets);
+      renderBuilder();
+    }));
+  });
+}
+
+function openSegmentEditor(idx) {
+  const segs = presets[activePresetName];
+  const isNew = idx === undefined;
+  const seg = isNew ? { phase: 'warmup', name: '', type: 'time', duration: 30, reps: 10, rest: 0 } : segs[idx];
+
+  const name = prompt('Segment name:', seg.name || '');
+  if (name === null) return;
+  const phase = prompt('Phase (warmup / strength / rest / cooldown):', seg.phase || 'warmup');
+  if (phase === null) return;
+  const type = prompt('Type (time / reps):', seg.type === 'reps' ? 'reps' : 'time');
+  if (type === null) return;
+  let duration = seg.duration, reps = seg.reps;
+  if (type === 'reps') {
+    const r = prompt('Number of reps:', seg.reps || 10);
+    if (r === null) return;
+    reps = parseInt(r, 10) || 10;
+  } else {
+    const d = prompt('Duration in seconds:', seg.duration || 30);
+    if (d === null) return;
+    duration = parseInt(d, 10) || 30;
+  }
+  const restStr = prompt('Rest after this segment in seconds (0 for none):', seg.restAfter || 0);
+  const restAfter = restStr === null ? (seg.restAfter || 0) : (parseInt(restStr, 10) || 0);
+
+  const newSeg = {
+    phase: (['warmup', 'strength', 'rest', 'cooldown'].includes(phase) ? phase : 'warmup'),
+    name: name || 'Segment',
+    type: type === 'reps' ? 'reps' : 'time',
+    announceStart: 'Begin ' + (name || 'segment'),
+    endMsg: 'Done'
+  };
+  if (newSeg.type === 'reps') { newSeg.reps = reps; newSeg.secondsPerRep = 2; }
+  else { newSeg.duration = duration; newSeg.warnings = [{ at: 10, msg: '10 seconds remaining' }]; }
+
+  if (isNew) {
+    segs.push(newSeg);
+    if (restAfter > 0) segs.push({ phase: 'rest', name: 'Rest', type: 'time', duration: restAfter,
+      warnings: [{ at: 10, msg: '10 seconds remaining' }], endMsg: 'Rest over' });
+  } else {
+    segs[idx] = newSeg;
+  }
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+}
+
+$('#add-segment-btn').addEventListener('click', debounceClick(() => openSegmentEditor(undefined)));
+
+$('#preset-select').addEventListener('change', e => {
+  activePresetName = e.target.value;
+  localStorage.setItem(LS_KEYS.activePreset, activePresetName);
+  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  renderBuilder();
+});
+
+$('#new-preset-btn').addEventListener('click', debounceClick(() => {
+  const name = prompt('New preset name:');
+  if (!name) return;
+  if (presets[name]) { showToast('A preset with that name already exists.'); return; }
+  presets[name] = [];
+  activePresetName = name;
+  localStorage.setItem(LS_KEYS.activePreset, activePresetName);
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+}));
+
+$('#rename-preset-btn').addEventListener('click', debounceClick(() => {
+  const name = prompt('Rename preset to:', activePresetName);
+  if (!name || name === activePresetName) return;
+  if (presets[name]) { showToast('A preset with that name already exists.'); return; }
+  presets[name] = presets[activePresetName];
+  delete presets[activePresetName];
+  activePresetName = name;
+  localStorage.setItem(LS_KEYS.activePreset, activePresetName);
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+}));
+
+$('#delete-preset-btn').addEventListener('click', debounceClick(() => {
+  if (Object.keys(presets).length <= 1) { showToast('At least one preset must remain.'); return; }
+  if (!confirm('Delete preset "' + activePresetName + '"?')) return;
+  delete presets[activePresetName];
+  activePresetName = Object.keys(presets)[0];
+  localStorage.setItem(LS_KEYS.activePreset, activePresetName);
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+}));
+
+$('#export-btn').addEventListener('click', debounceClick(() => {
+  const data = JSON.stringify({ presets, settings }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'gym-timer-export.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}));
+
+$('#import-btn').addEventListener('click', debounceClick(() => $('#import-file').click()));
+$('#import-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (data.presets) {
+        Object.assign(presets, data.presets);
+        saveJSON(LS_KEYS.presets, presets);
+      }
+      if (data.settings) {
+        Object.assign(settings, data.settings);
+        saveSettings();
+        initSettingsUI();
+      }
+      renderBuilder();
+      showToast('Import successful.');
+    } catch (err) {
+      showToast('Import failed: invalid JSON file.');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+/* ============================================================
+   SECTION 15: HISTORY
+============================================================ */
+function renderHistory() {
+  const list = $('#history-list');
+  if (!history.length) { list.innerHTML = '<p class="hint">No workouts logged yet.</p>'; return; }
+  list.innerHTML = '';
+  history.forEach(entry => {
+    const d = new Date(entry.date);
+    const div = document.createElement('div');
+    div.className = 'history-entry';
+    const exList = entry.exercises && entry.exercises.length
+      ? '<ul>' + entry.exercises.map(x => `<li>${x.name}${x.weight ? ' — ' + x.weight + ' lbs' : ''}</li>`).join('') + '</ul>'
+      : '<div class="hint">No weights logged.</div>';
+    div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="h-meta">${entry.workoutName}</div>${exList}`;
+    list.appendChild(div);
+  });
+}
+$('#clear-history-btn').addEventListener('click', debounceClick(() => {
+  if (!confirm('Clear all workout history?')) return;
+  history = [];
+  saveJSON(LS_KEYS.history, history);
+  renderHistory();
+}));
+
+/* ============================================================
+   SECTION 16: SPOTIFY (Web Playback SDK + PKCE OAuth)
+   Fully optional — loaded/executed only on user action.
+   The core timer never depends on any of this succeeding.
+============================================================ */
+const Spotify = {
+  player: null,
+  deviceId: null,
+  tokens: loadJSON(LS_KEYS.spotifyTokens, null),
+  sdkLoaded: false,
+  pollHandle: null
+};
+
+function spotifyRedirectUri() {
+  return window.location.origin + window.location.pathname;
+}
+
+// Spotify rejects file:// entirely and now requires the loopback IP literal
+// (127.0.0.1) rather than the hostname "localhost" for plain http redirects.
+function spotifyRedirectIssue() {
+  if (window.location.protocol === 'file:') {
+    return 'This page is open as a local file (file://). Spotify cannot use a file:// address as a redirect URI. ' +
+      'Serve this page over http(s) — e.g. run a local server and open it via that URL — then try connecting again.';
+  }
+  if (window.location.protocol === 'http:' && window.location.hostname === 'localhost') {
+    return 'Spotify no longer accepts "localhost" as a redirect host over plain http — it requires the literal IP 127.0.0.1. ' +
+      'Open this page via http://127.0.0.1:' + window.location.port + window.location.pathname +
+      ' instead of localhost, register that exact URL in your Spotify app dashboard, then try connecting again.';
+  }
+  return null;
+}
+
+function base64UrlEncode(buffer) {
+  let str = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function randomVerifier(len) {
+  const arr = new Uint8Array(len || 64);
+  crypto.getRandomValues(arr);
+  return base64UrlEncode(arr.buffer).slice(0, len || 64);
+}
+async function sha256(str) {
+  const data = new TextEncoder().encode(str);
+  return crypto.subtle.digest('SHA-256', data);
+}
+
+async function spotifyConnect() {
+  const clientId = $('#spotify-client-id').value.trim();
+  if (!clientId) { setSpotifyError('Enter your Spotify Client ID first.'); return; }
+  const issue = spotifyRedirectIssue();
+  if (issue) { setSpotifyError(issue); return; }
+  if (!window.isSecureContext) {
+    setSpotifyError('Spotify OAuth requires HTTPS (or the 127.0.0.1 loopback address). This page must be served securely.');
+    return;
+  }
+  saveJSON(LS_KEYS.spotifyClientId, clientId);
+  const verifier = randomVerifier(64);
+  localStorage.setItem(LS_KEYS.spotifyVerifier, verifier);
+  const challengeBuf = await sha256(verifier);
+  const challenge = base64UrlEncode(challengeBuf);
+
+  const scope = [
+    'streaming', 'user-read-email', 'user-read-private',
+    'user-read-playback-state', 'user-modify-playback-state'
+  ].join(' ');
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    redirect_uri: spotifyRedirectUri(),
+    scope,
+    code_challenge_method: 'S256',
+    code_challenge: challenge
+  });
+  window.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+}
+
+async function handleSpotifyRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) return;
+  const verifier = localStorage.getItem(LS_KEYS.spotifyVerifier);
+  const clientId = loadJSON(LS_KEYS.spotifyClientId, null);
+  if (!verifier || !clientId) return;
+
+  try {
+    const resp = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: spotifyRedirectUri(),
+        code_verifier: verifier
+      })
+    });
+    if (!resp.ok) throw new Error('Token exchange failed (' + resp.status + ')');
+    const data = await resp.json();
+    Spotify.tokens = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: Date.now() + (data.expires_in * 1000)
+    };
+    saveJSON(LS_KEYS.spotifyTokens, Spotify.tokens);
+    history_replaceCleanUrl();
+    initSpotifyConnectedUI();
+  } catch (err) {
+    setSpotifyError('Spotify connection failed: ' + err.message);
+  }
+}
+function history_replaceCleanUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('code');
+  url.searchParams.delete('state');
+  window.history.replaceState({}, document.title, url.toString());
+}
+
+async function ensureValidSpotifyToken() {
+  if (!Spotify.tokens) return null;
+  if (Date.now() < Spotify.tokens.expires_at - 30000) return Spotify.tokens.access_token;
+  const clientId = loadJSON(LS_KEYS.spotifyClientId, null);
+  if (!Spotify.tokens.refresh_token || !clientId) return Spotify.tokens.access_token;
+  try {
+    const resp = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        grant_type: 'refresh_token',
+        refresh_token: Spotify.tokens.refresh_token
+      })
+    });
+    if (!resp.ok) throw new Error('refresh failed');
+    const data = await resp.json();
+    Spotify.tokens.access_token = data.access_token;
+    Spotify.tokens.expires_at = Date.now() + (data.expires_in * 1000);
+    if (data.refresh_token) Spotify.tokens.refresh_token = data.refresh_token;
+    saveJSON(LS_KEYS.spotifyTokens, Spotify.tokens);
+    return Spotify.tokens.access_token;
+  } catch (e) {
+    return Spotify.tokens.access_token;
+  }
+}
+
+function loadSpotifySDK() {
+  return new Promise((resolve, reject) => {
+    if (Spotify.sdkLoaded) return resolve();
+    if (!navigator.onLine) return reject(new Error('No internet connection.'));
+    const script = document.createElement('script');
+    script.src = 'https://sdk.scdn.co/spotify-player.js';
+    script.onerror = () => reject(new Error('Could not load Spotify SDK. If using Brave, check Shields for this page.'));
+    window.onSpotifyWebPlaybackSDKReady = () => { Spotify.sdkLoaded = true; resolve(); };
+    document.head.appendChild(script);
+    setTimeout(() => { if (!Spotify.sdkLoaded) reject(new Error('Spotify SDK load timed out.')); }, 8000);
+  });
+}
+
+async function initSpotifyPlayer() {
+  try {
+    await loadSpotifySDK();
+    Spotify.player = new window.Spotify.Player({
+      name: 'Gym Interval Timer',
+      getOAuthToken: cb => { ensureValidSpotifyToken().then(t => cb(t)); },
+      volume: 0.7
+    });
+    Spotify.player.addListener('ready', ({ device_id }) => { Spotify.deviceId = device_id; });
+    Spotify.player.addListener('player_state_changed', renderSpotifyState);
+    Spotify.player.addListener('initialization_error', ({ message }) => setSpotifyError('Init error: ' + message));
+    Spotify.player.addListener('authentication_error', ({ message }) => setSpotifyError('Auth error: ' + message));
+    Spotify.player.addListener('account_error', ({ message }) => setSpotifyError('Spotify Premium is required: ' + message));
+    await Spotify.player.connect();
+  } catch (err) {
+    setSpotifyError(err.message || 'Failed to initialize Spotify player.');
+  }
+}
+
+function renderSpotifyState(state) {
+  if (!state) return;
+  const track = state.track_window && state.track_window.current_track;
+  if (track) {
+    $('#spotify-track-name').textContent = track.name;
+    $('#spotify-artist-name').textContent = track.artists.map(a => a.name).join(', ');
+  }
+  $('#spotify-playpause').textContent = state.paused ? '▶' : '⏸';
+}
+
+function setSpotifyError(msg) {
+  $('#spotify-error').textContent = msg;
+  if (msg) showToast(msg, 4500);
+}
+
+function initSpotifyConnectedUI() {
+  $('#spotify-disconnected').classList.add('hidden');
+  $('#spotify-connected').classList.remove('hidden');
+  setSpotifyError('');
+  initSpotifyPlayer();
+}
+
+$('#spotify-redirect-uri').value = spotifyRedirectUri();
+$('#spotify-redirect-warning').textContent = spotifyRedirectIssue() || '';
+$('#spotify-client-id').value = loadJSON(LS_KEYS.spotifyClientId, '') || '';
+$('#spotify-connect-btn').addEventListener('click', debounceClick(spotifyConnect));
+$('#spotify-disconnect-btn').addEventListener('click', debounceClick(() => {
+  if (Spotify.player) { Spotify.player.disconnect(); Spotify.player = null; }
+  Spotify.tokens = null;
+  localStorage.removeItem(LS_KEYS.spotifyTokens);
+  $('#spotify-connected').classList.add('hidden');
+  $('#spotify-disconnected').classList.remove('hidden');
+}));
+$('#spotify-playpause').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.togglePlay()));
+$('#spotify-next').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.nextTrack()));
+$('#spotify-prev').addEventListener('click', debounceClick(() => Spotify.player && Spotify.player.previousTrack()));
+$('#spotify-volume').addEventListener('input', (e) => Spotify.player && Spotify.player.setVolume(parseFloat(e.target.value)));
+
+async function spotifySearchAndPlay(query, type) {
+  const token = await ensureValidSpotifyToken();
+  if (!token) { setSpotifyError('Not connected to Spotify.'); return; }
+  try {
+    const resp = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type || 'track,playlist'}&limit=8`, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (!resp.ok) throw new Error('Search failed (' + resp.status + ')');
+    const data = await resp.json();
+    renderSearchResults(data);
+  } catch (err) {
+    setSpotifyError(err.message);
+  }
+}
+
+function renderSearchResults(data) {
+  const box = $('#spotify-search-results');
+  box.innerHTML = '';
+  const items = [
+    ...((data.tracks && data.tracks.items) || []).map(t => ({ type: 'track', uri: t.uri, label: t.name + ' — ' + t.artists.map(a => a.name).join(', ') })),
+    ...((data.playlists && data.playlists.items) || []).filter(Boolean).map(p => ({ type: 'playlist', uri: p.uri, label: '📻 ' + p.name }))
+  ];
+  if (!items.length) { box.innerHTML = '<p class="hint">No results.</p>'; return; }
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'search-result-item';
+    row.innerHTML = `<span>${item.label}</span><button>Play</button>`;
+    row.querySelector('button').addEventListener('click', debounceClick(() => playSpotifyUri(item)));
+    box.appendChild(row);
+  });
+}
+
+async function playSpotifyUri(item) {
+  const token = await ensureValidSpotifyToken();
+  if (!token || !Spotify.deviceId) { setSpotifyError('Spotify player not ready yet.'); return; }
+  const body = item.type === 'track' ? { uris: [item.uri] } : { context_uri: item.uri };
+  try {
+    const resp = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${Spotify.deviceId}`, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok && resp.status !== 204) throw new Error('Playback failed (' + resp.status + ')');
+  } catch (err) {
+    setSpotifyError(err.message);
+  }
+}
+
+$('#spotify-search').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.value.trim()) spotifySearchAndPlay(e.target.value.trim());
+});
+$$('.playlist-quick button').forEach(btn => {
+  btn.addEventListener('click', debounceClick(() => spotifySearchAndPlay(btn.dataset.q, 'playlist')));
+});
+
+/* ============================================================
+   SECTION 17: INIT
+============================================================ */
+function init() {
+  initSettingsUI();
+  renderPresetSelect();
+  renderHistory();
+  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  setPhaseUI('idle');
+  updateRing(0);
+
+  // Prevent accidental navigation away mid-workout.
+  window.addEventListener('beforeunload', (e) => {
+    if (engine.isRunning) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // Re-acquire wake lock if page regains visibility mid-workout.
+  document.addEventListener('fullscreenchange', () => { if (engine.isRunning) requestWakeLock(); });
+
+  // Resume Spotify session if a token was already saved.
+  if (Spotify.tokens) initSpotifyConnectedUI();
+  handleSpotifyRedirect();
+
+  if (!ttsAvailable) {
+    showToast('Voice announcements are not supported in this browser — on-screen alerts will be used instead.', 5000);
+  }
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
