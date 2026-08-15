@@ -567,7 +567,7 @@ select, input[type=range] { width: 100%; }
   <div id="library-modal" class="modal-overlay">
     <div class="panel" style="max-height:82vh;display:flex;flex-direction:column;">
       <h2>Add From Exercise Library</h2>
-      <p class="hint">Each adds 2 sets with its own instruction screen — edit the segments afterward to change sets, time, or reps.</p>
+      <p class="hint">Each adds 1 set with its own instruction screen and no automatic rest — tap Add again for another set, and use + Add Segment to drop in a Rest wherever you actually want one.</p>
       <div id="library-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
       <button id="library-close-btn" style="width:100%;margin-top:10px;">Close</button>
     </div>
@@ -948,7 +948,8 @@ const EXERCISE_LIBRARY = EXERCISES.concat(EXTRA_EXERCISES);
 // Shared segment-builder for N sets of one exercise: an instruction screen
 // before set 1, then (work + rest) pairs. Used both by the default Morning
 // Workout and by Builder > Add From Exercise Library.
-function buildExerciseSegments(ex, sets) {
+function buildExerciseSegments(ex, sets, includeRest) {
+  if (includeRest === undefined) includeRest = true;
   const segs = [];
   const totalSets = sets || 2;
   for (let set = 1; set <= totalSets; set++) {
@@ -963,14 +964,16 @@ function buildExerciseSegments(ex, sets) {
       duration: ex.workSeconds, setNumber: set, totalSets: totalSets, targetReps: ex.reps,
       announceStart: `Begin ${ex.name}`,
       warnings: [{ at: 10, msg: '10 seconds remaining' }],
-      endMsg: `Set complete, rest for ${ex.rest} seconds`
+      endMsg: includeRest ? `Set complete, rest for ${ex.rest} seconds` : 'Set complete'
     });
-    segs.push({
-      phase: 'rest', type: 'time', name: 'Rest', exerciseKey: ex.key,
-      duration: ex.rest, setNumber: set, totalSets: totalSets,
-      warnings: [{ at: 30, msg: '30 seconds remaining' }, { at: 10, msg: '10 seconds remaining' }],
-      endMsg: set === 1 ? 'Rest over, prepare for set 2' : 'Rest over'
-    });
+    if (includeRest) {
+      segs.push({
+        phase: 'rest', type: 'time', name: 'Rest', exerciseKey: ex.key,
+        duration: ex.rest, setNumber: set, totalSets: totalSets,
+        warnings: [{ at: 30, msg: '30 seconds remaining' }, { at: 10, msg: '10 seconds remaining' }],
+        endMsg: set === 1 ? 'Rest over, prepare for set 2' : 'Rest over'
+      });
+    }
   }
   return segs;
 }
@@ -1830,7 +1833,7 @@ $('#seg-edit-save-btn').addEventListener('click', debounceClick(saveSegmentEdito
 $('#add-segment-btn').addEventListener('click', debounceClick(() => openSegmentEditor(undefined)));
 
 /* ---- Exercise library picker: insert a ready-made exercise (with its own
-   instruction screen, SVG, and 2 sets) into the active preset. ---- */
+   instruction screen and SVG) into the active preset, one set at a time. ---- */
 function renderLibraryList() {
   const container = $('#library-list');
   const categories = {};
@@ -1844,7 +1847,7 @@ function renderLibraryList() {
             <div style="width:40px;height:40px;flex-shrink:0;">${ex.svg}</div>
             <div style="min-width:0;">
               <div class="seg-title">${ex.name}</div>
-              <div class="seg-meta">2 sets × ${ex.reps ? ex.reps + ' reps' : ex.workSeconds + 's'}</div>
+              <div class="seg-meta">1 set × ${ex.reps ? ex.reps + ' reps' : ex.workSeconds + 's'}</div>
             </div>
           </div>
           <button data-add="${ex.key}" class="small-btn">+ Add</button>
@@ -1861,10 +1864,13 @@ function addExerciseFromLibrary(exerciseKey) {
   const ex = EXERCISE_MAP[exerciseKey];
   if (!ex) return;
   const segs = presets[activePresetName];
-  segs.push(...buildExerciseSegments(ex, 2));
+  // Just one set, no auto-attached rest — rest is something you add
+  // deliberately (via + Add Segment) wherever you actually want it,
+  // since some routines chain several exercises before resting.
+  segs.push(...buildExerciseSegments(ex, 1, false));
   saveJSON(LS_KEYS.presets, presets);
   renderBuilder();
-  showToast('Added ' + ex.name + ' (2 sets)');
+  showToast('Added ' + ex.name + ' — tap again for another set, or + Add Segment for a Rest');
 }
 
 $('#add-from-library-btn').addEventListener('click', debounceClick(() => {
