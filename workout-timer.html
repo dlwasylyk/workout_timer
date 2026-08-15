@@ -99,7 +99,6 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
 .progress-label { font-size: 12px; color: var(--muted); align-self: flex-start; }
 
 #controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; width: 100%; }
-#controls-row.three { grid-template-columns: 1fr 1fr 1fr; }
 
 #mini-spotify-bar {
   display: flex; align-items: center; gap: 4px; width: 100%;
@@ -118,6 +117,7 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
 }
 #start-btn { background: var(--strength); color: #14100a; font-size: 20px; padding: 18px; width: 100%; }
 .btn-pause { background: var(--warmup); }
+.btn-complete { background: var(--rest); color: #0d1a02; }
 .btn-skip { background: var(--surface2); }
 .btn-stop { background: var(--danger); color: #fff; }
 .btn-show-instruction { background: var(--surface2); width: 100%; margin-top: 10px; }
@@ -206,6 +206,7 @@ select, input[type=range] { width: 100%; }
 .history-entry .h-date { font-weight: 700; font-size: 14px; }
 .history-entry .h-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .history-entry ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.history-entry ul.deviations { color: #ffb37a; }
 
 /* ============================= SPOTIFY ============================= */
 .spotify-banner {
@@ -269,6 +270,7 @@ select, input[type=range] { width: 100%; }
 
     <div id="controls-row" class="hidden">
       <button id="pause-btn" class="btn-pause">⏸ PAUSE</button>
+      <button id="complete-btn" class="btn-complete">✓ COMPLETE</button>
       <button id="skip-btn" class="btn-skip">⏭ SKIP</button>
       <button id="stop-btn" class="btn-stop">■ STOP</button>
     </div>
@@ -746,6 +748,7 @@ const el = {
   startBtn: $('#start-btn'),
   controlsRow: $('#controls-row'),
   pauseBtn: $('#pause-btn'),
+  completeBtn: $('#complete-btn'),
   skipBtn: $('#skip-btn'),
   stopBtn: $('#stop-btn'),
   showInstructionBtn: $('#show-instruction-btn'),
@@ -874,9 +877,27 @@ const engine = {
   totalPlannedSeconds: 0,
   elapsedPlannedSeconds: 0,
   currentLog: [], // {exerciseKey, name, weight}
+  segmentLog: [], // {name, phase, setNumber, totalSets, status, plannedSeconds, actualSeconds}
   awaitingInstruction: false,
   workoutName: ''
 };
+
+// Records how a segment actually ended so History can distinguish a full
+// completion from one cut short on purpose (Complete) versus abandoned (Skip).
+function recordSegmentOutcome(status) {
+  const seg = engine.segments[engine.index];
+  if (!seg || seg.type === 'instruction') return;
+  const elapsedMs = (performance.now() - engine.segStartTs) - engine.pausedAccumMs;
+  engine.segmentLog.push({
+    name: seg.name,
+    phase: seg.phase,
+    setNumber: seg.setNumber,
+    totalSets: seg.totalSets,
+    status,
+    plannedSeconds: estimateSegmentSeconds(seg),
+    actualSeconds: Math.max(0, Math.round(elapsedMs / 1000))
+  });
+}
 
 function estimateSegmentSeconds(seg) {
   if (seg.type === 'time') return seg.duration;
@@ -896,6 +917,7 @@ function startWorkout() {
   engine.isRunning = true;
   engine.isPaused = false;
   engine.currentLog = [];
+  engine.segmentLog = [];
   engine.workoutName = activePresetName;
   engine.totalPlannedSeconds = segs.reduce((sum, s) => sum + estimateSegmentSeconds(s), 0) || 1;
   engine.elapsedPlannedSeconds = 0;
@@ -920,11 +942,12 @@ function stopWorkout(save) {
   el.weightLogRow.style.display = 'none';
   el.overlay.classList.remove('active');
 
-  if (save && engine.currentLog.length > 0) {
+  if (save && (engine.currentLog.length > 0 || engine.segmentLog.length > 0)) {
     history.unshift({
       date: new Date().toISOString(),
       workoutName: engine.workoutName,
-      exercises: engine.currentLog.slice()
+      exercises: engine.currentLog.slice(),
+      segments: engine.segmentLog.slice()
     });
     history = history.slice(0, 50);
     saveJSON(LS_KEYS.history, history);
@@ -958,7 +981,14 @@ function resumeWorkout() {
 }
 
 function skipSegment() {
-  if (!engine.isRunning) return;
+  if (!engine.isRunning || engine.awaitingInstruction) return;
+  recordSegmentOutcome('skipped');
+  advanceToNextSegment();
+}
+
+function completeSegment() {
+  if (!engine.isRunning || engine.awaitingInstruction) return;
+  recordSegmentOutcome('completed-early');
   advanceToNextSegment();
 }
 
@@ -1114,6 +1144,7 @@ function tick() {
     if (remaining <= 0) {
       if (seg.endMsg) speak(seg.endMsg);
       vibrate(150);
+      recordSegmentOutcome('completed');
       advanceToNextSegment();
     }
   } else if (seg.type === 'reps') {
@@ -1132,6 +1163,7 @@ function tick() {
     if (remaining <= 0) {
       if (seg.endMsg) speak(seg.endMsg);
       vibrate(150);
+      recordSegmentOutcome('completed');
       advanceToNextSegment();
     }
   }
@@ -1227,6 +1259,7 @@ el.startBtn.addEventListener('click', debounceClick(startWorkout));
 el.pauseBtn.addEventListener('click', debounceClick(() => {
   if (engine.isPaused) resumeWorkout(); else pauseWorkout(false);
 }));
+el.completeBtn.addEventListener('click', debounceClick(completeSegment));
 el.skipBtn.addEventListener('click', debounceClick(skipSegment));
 el.stopBtn.addEventListener('click', debounceClick(() => {
   if (confirm('Stop the current workout?')) stopWorkout(true);
@@ -1517,8 +1550,27 @@ function renderHistory() {
     const exList = entry.exercises && entry.exercises.length
       ? '<ul>' + entry.exercises.map(x => `<li>${x.name}${x.weight ? ' — ' + x.weight + ' lbs' : ''}</li>`).join('') + '</ul>'
       : '<div class="hint">No weights logged.</div>';
+
+    // Segment-level completion tracking: silence means "completed as planned",
+    // only deviations (early finishes, skips) get called out explicitly.
+    const segments = entry.segments || [];
+    const completedCount = segments.filter(s => s.status === 'completed').length;
+    const earlyCount = segments.filter(s => s.status === 'completed-early').length;
+    const skippedCount = segments.filter(s => s.status === 'skipped').length;
+    const segSummary = segments.length
+      ? `<div class="h-meta">${completedCount} completed as planned${earlyCount ? ', ' + earlyCount + ' completed early' : ''}${skippedCount ? ', ' + skippedCount + ' skipped' : ''}</div>`
+      : '';
+    const deviations = segments.filter(s => s.status !== 'completed');
+    const devList = deviations.length
+      ? '<ul class="deviations">' + deviations.map(s => {
+          const setLabel = s.setNumber ? ` Set ${s.setNumber}/${s.totalSets}` : '';
+          const label = s.status === 'skipped' ? 'skipped' : `completed early (${s.actualSeconds}s of ${s.plannedSeconds}s)`;
+          return `<li>${s.name}${setLabel} — ${label}</li>`;
+        }).join('') + '</ul>'
+      : '';
+
     div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
-      <div class="h-meta">${entry.workoutName}</div>${exList}`;
+      <div class="h-meta">${entry.workoutName}</div>${segSummary}${devList}${exList}`;
     list.appendChild(div);
   });
 }
