@@ -115,6 +115,15 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
   flex: 1; min-width: 0; font-size: 11px; color: #9aa5b1;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; padding: 0 4px;
 }
+
+#voice-status-label {
+  text-align: center; font-size: 11px; color: var(--rest); margin-top: 8px;
+  animation: voicePulse 2s ease-in-out infinite;
+}
+@keyframes voicePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+#walk-distance { font-size: clamp(40px, 14vw, 64px); font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 6px; color: var(--warmup); }
+#walk-substats { font-size: 14px; }
 #start-btn { background: var(--strength); color: #14100a; font-size: 20px; padding: 18px; width: 100%; }
 .btn-pause { background: var(--warmup); }
 .btn-complete { background: var(--rest); color: #0d1a02; }
@@ -282,6 +291,8 @@ select, input[type=range] { width: 100%; }
       <span id="mini-spotify-label">Connect Spotify in Settings for playback controls</span>
     </div>
 
+    <div id="voice-status-label" class="hidden">🎤 Listening — say "pause", "complete", or "skip"</div>
+
     <button id="show-instruction-btn" class="btn-show-instruction hidden">📋 SHOW INSTRUCTION</button>
 
     <div id="next-up" class="hidden">Next up: <b id="next-up-name">—</b></div>
@@ -318,6 +329,36 @@ select, input[type=range] { width: 100%; }
         <input type="file" id="import-file" accept="application/json" class="hidden">
         <button id="import-btn">⬆ Import JSON</button>
       </div>
+    </div>
+  </section>
+
+  <!-- ============================= WALK SCREEN ============================= -->
+  <section id="screen-walk" class="screen">
+    <div class="panel" style="text-align:center;">
+      <h2 style="text-align:left;">🚶 Walk Tracker</h2>
+      <p class="hint" style="text-align:left;">Uses your phone's GPS directly — no map, no account, no API key. Enable anytime, independent of a gym workout. For best accuracy, keep this tab open and the screen on while walking.</p>
+      <div id="walk-distance">0.00 mi</div>
+      <div id="walk-substats" class="hint">0:00 elapsed · 0.0 mph · -- /mi pace</div>
+      <div style="display:flex;justify-content:center;gap:18px;margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+          <input type="radio" name="walk-units" id="walk-units-mi" value="mi" checked> Miles
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+          <input type="radio" name="walk-units" id="walk-units-km" value="km"> Kilometers
+        </label>
+      </div>
+      <button id="walk-start-btn" style="width:100%;margin-top:16px;background:var(--warmup);">▶ START WALK</button>
+      <div id="walk-controls-row" class="hidden" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;">
+        <button id="walk-pause-btn" class="btn-pause">⏸ PAUSE</button>
+        <button id="walk-stop-btn" class="btn-stop">■ STOP &amp; SAVE</button>
+      </div>
+      <p class="hint" id="walk-gps-status" style="margin-top:10px;min-height:16px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Walks</h2>
+      <div id="walk-history-list"><p class="hint">No walks logged yet.</p></div>
+      <button id="clear-walks-btn" class="small-btn" style="margin-top:8px;">Clear Walk History</button>
     </div>
   </section>
 
@@ -376,6 +417,16 @@ select, input[type=range] { width: 100%; }
       </div>
     </div>
 
+    <div class="panel">
+      <h2>🎤 Voice Commands</h2>
+      <div class="row">
+        <label>Say "pause", "complete", or "skip" during a workout</label>
+        <label class="switch"><input type="checkbox" id="setting-voice-commands"><span class="slider-toggle"></span></label>
+      </div>
+      <p class="hint">Listens automatically the whole time a workout is running — no tap needed. Uses the browser's built-in speech recognition (needs microphone access and an internet connection). Commands are matched instantly and never stored or logged. If using Brave, this may need Shields adjusted for this page.</p>
+      <p class="hint" id="voice-commands-error" style="color:#ff8a80;"></p>
+    </div>
+
     <div class="panel" id="spotify-panel">
       <h2>🎵 Spotify Integration (optional)</h2>
       <div id="spotify-disconnected">
@@ -426,6 +477,7 @@ select, input[type=range] { width: 100%; }
   <nav class="bottom-nav">
     <button data-tab="timer" class="active"><span class="icon">⏱</span>Timer</button>
     <button data-tab="builder"><span class="icon">🛠</span>Builder</button>
+    <button data-tab="walk"><span class="icon">🚶</span>Walk</button>
     <button data-tab="history"><span class="icon">📜</span>History</button>
     <button data-tab="settings"><span class="icon">⚙</span>Settings</button>
   </nav>
@@ -688,7 +740,9 @@ const LS_KEYS = {
   history: 'gymtimer_history',
   spotifyTokens: 'gymtimer_spotify_tokens',
   spotifyClientId: 'gymtimer_spotify_client_id',
-  spotifyVerifier: 'gymtimer_spotify_verifier'
+  spotifyVerifier: 'gymtimer_spotify_verifier',
+  walks: 'gymtimer_walks',
+  walkUnits: 'gymtimer_walk_units'
 };
 
 const DEFAULT_SETTINGS = {
@@ -699,7 +753,8 @@ const DEFAULT_SETTINGS = {
   vibrate: true,
   wakeLock: true,
   instructionsEnabled: true,
-  skipInstructionFuture: false
+  skipInstructionFuture: false,
+  voiceCommands: false
 };
 
 function loadJSON(key, fallback) {
@@ -728,6 +783,8 @@ let activePresetName = localStorage.getItem(LS_KEYS.activePreset) || 'Morning Wo
 if (!presets[activePresetName]) activePresetName = Object.keys(presets)[0];
 
 let history = loadJSON(LS_KEYS.history, []);
+let walks = loadJSON(LS_KEYS.walks, []);
+let walkUnits = localStorage.getItem(LS_KEYS.walkUnits) || 'mi';
 
 /* ============================================================
    SECTION 4: DOM REFERENCES
@@ -756,6 +813,7 @@ const el = {
   nextUpName: $('#next-up-name'),
   weightLogRow: $('#weight-log-row'),
   quickWeight: $('#quick-weight'),
+  voiceStatusLabel: $('#voice-status-label'),
 
   overlay: $('#instruction-overlay'),
   instrTitle: $('#instruction-title'),
@@ -789,6 +847,7 @@ function showToast(msg, ms) {
 const RATE_MAP = { slow: 0.75, normal: 1.0, fast: 1.35 };
 let ttsAvailable = 'speechSynthesis' in window;
 let voicesReady = false;
+let ttsSpeaking = false;
 if (ttsAvailable) {
   window.speechSynthesis.onvoiceschanged = () => { voicesReady = true; };
 }
@@ -806,6 +865,11 @@ function speak(text) {
     u.volume = settings.volume;
     u.rate = RATE_MAP[settings.speed] || 1.0;
     u.pitch = 1.0;
+    // Gate voice-command matching while the app itself is talking, so it
+    // doesn't mishear its own announcements (e.g. "skip" inside a phrase).
+    ttsSpeaking = true;
+    u.onend = () => { ttsSpeaking = false; };
+    u.onerror = () => { ttsSpeaking = false; };
     window.speechSynthesis.speak(u);
   } catch (e) {
     showToast('🔊 ' + text);
@@ -925,6 +989,7 @@ function startWorkout() {
   el.startBtn.classList.add('hidden');
   el.controlsRow.classList.remove('hidden');
   requestWakeLock();
+  if (settings.voiceCommands) startVoiceRecognition();
   advanceToNextSegment();
   startTickLoop();
 }
@@ -935,6 +1000,7 @@ function stopWorkout(save) {
   clearInterval(engine.intervalHandle);
   window.speechSynthesis && window.speechSynthesis.cancel();
   releaseWakeLock();
+  stopVoiceRecognition();
   el.startBtn.classList.remove('hidden');
   el.controlsRow.classList.add('hidden');
   el.showInstructionBtn.classList.add('hidden');
@@ -1282,6 +1348,7 @@ $$('.bottom-nav button').forEach(btn => {
     $('#screen-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'builder') renderBuilder();
     if (btn.dataset.tab === 'history') renderHistory();
+    if (btn.dataset.tab === 'walk') renderWalkHistory();
   });
 });
 
@@ -1297,6 +1364,10 @@ function initSettingsUI() {
   $('#setting-wakelock').checked = settings.wakeLock;
   $('#setting-instructions').checked = settings.instructionsEnabled;
   $('#setting-skip-instruction').checked = settings.skipInstructionFuture;
+  $('#setting-voice-commands').checked = settings.voiceCommands;
+  if (!VoiceCommands.supported) {
+    $('#voice-commands-error').textContent = 'Voice commands aren\'t supported in this browser.';
+  }
 
   $('#setting-tts').addEventListener('change', e => { settings.ttsEnabled = e.target.checked; saveSettings(); });
   $('#setting-volume').addEventListener('input', e => { settings.volume = parseFloat(e.target.value); saveSettings(); });
@@ -1877,6 +1948,269 @@ $$('.playlist-quick button').forEach(btn => {
 });
 
 /* ============================================================
+   SECTION 16.5: VOICE COMMANDS (Complete / Pause / Skip by voice)
+   Transcripts are matched entirely in memory and immediately
+   discarded — nothing is ever written to localStorage or history.
+============================================================ */
+const VoiceCommands = {
+  recognition: null,
+  active: false, // true while we want the recognizer armed (workout running + setting on)
+  supported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+  lastActionAt: 0,
+  errorStreak: 0
+};
+
+function buildVoiceRecognizer() {
+  const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new Ctor();
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.lang = 'en-US';
+  rec.onresult = handleVoiceResult;
+  rec.onerror = handleVoiceError;
+  rec.onend = () => {
+    // Browsers stop continuous recognition after a period of silence —
+    // re-arm automatically so the user never has to touch anything.
+    if (VoiceCommands.active) {
+      try { rec.start(); } catch (e) { /* already starting */ }
+    }
+  };
+  return rec;
+}
+
+function handleVoiceResult(event) {
+  if (ttsSpeaking) return; // don't let the app hear its own announcements
+  if (Date.now() - VoiceCommands.lastActionAt < 1200) return; // debounce
+  VoiceCommands.errorStreak = 0;
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const result = event.results[i];
+    if (!result.isFinal) continue;
+    const transcript = result[0].transcript.trim().toLowerCase(); // used and discarded, never stored
+    if (/\b(pause|resume)\b/.test(transcript)) {
+      VoiceCommands.lastActionAt = Date.now();
+      if (engine.isPaused) { resumeWorkout(); showToast('🎤 Resume'); }
+      else { pauseWorkout(false); showToast('🎤 Pause'); }
+      return;
+    }
+    if (/\bcomplete\b/.test(transcript)) {
+      VoiceCommands.lastActionAt = Date.now();
+      completeSegment();
+      showToast('🎤 Complete');
+      return;
+    }
+    if (/\bskip\b/.test(transcript)) {
+      VoiceCommands.lastActionAt = Date.now();
+      skipSegment();
+      showToast('🎤 Skip');
+      return;
+    }
+  }
+}
+
+function handleVoiceError(event) {
+  if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+    disableVoiceCommands('Microphone blocked — voice commands turned off. If using Brave, check Shields for this page (allow microphone access) or try Chrome.');
+    return;
+  }
+  if (event.error === 'no-speech' || event.error === 'aborted') return; // routine, onend will restart
+  VoiceCommands.errorStreak++;
+  if (VoiceCommands.errorStreak >= 5) {
+    disableVoiceCommands('Voice recognition kept failing (' + event.error + ') and was turned off. Check your connection and re-enable it in Settings.');
+  }
+}
+
+function disableVoiceCommands(msg) {
+  settings.voiceCommands = false;
+  saveSettings();
+  const cb = $('#setting-voice-commands'); if (cb) cb.checked = false;
+  stopVoiceRecognition();
+  $('#voice-commands-error').textContent = msg;
+  showToast('🎤 ' + msg, 5500);
+}
+
+function startVoiceRecognition() {
+  if (!VoiceCommands.supported) { showToast('Voice commands aren\'t supported in this browser.'); return; }
+  VoiceCommands.active = true;
+  VoiceCommands.errorStreak = 0;
+  if (!VoiceCommands.recognition) VoiceCommands.recognition = buildVoiceRecognizer();
+  try { VoiceCommands.recognition.start(); } catch (e) { /* already started */ }
+  updateVoiceStatusLabel();
+}
+
+function stopVoiceRecognition() {
+  VoiceCommands.active = false;
+  if (VoiceCommands.recognition) { try { VoiceCommands.recognition.stop(); } catch (e) {} }
+  updateVoiceStatusLabel();
+}
+
+function updateVoiceStatusLabel() {
+  el.voiceStatusLabel.classList.toggle('hidden', !(settings.voiceCommands && VoiceCommands.active));
+}
+
+$('#setting-voice-commands').addEventListener('change', e => {
+  settings.voiceCommands = e.target.checked;
+  saveSettings();
+  $('#voice-commands-error').textContent = '';
+  if (!settings.voiceCommands) { stopVoiceRecognition(); return; }
+  if (!VoiceCommands.supported) {
+    showToast('Voice commands aren\'t supported in this browser.');
+    settings.voiceCommands = false; saveSettings(); e.target.checked = false;
+    return;
+  }
+  // Prime the mic permission immediately (rather than surprising the user
+  // mid-workout), then stand down again until a workout is actually running.
+  startVoiceRecognition();
+  if (!engine.isRunning) setTimeout(() => { if (!engine.isRunning) stopVoiceRecognition(); }, 1500);
+});
+
+/* ============================================================
+   SECTION 16.6: WALK TRACKING (GPS distance/speed, no map/API key)
+   Independent of the workout flow — can be started any time. Uses
+   the phone's own GPS via the Geolocation API and computes distance
+   from the raw coordinate trail (haversine), so it works with no
+   external service, no account, and no cost.
+============================================================ */
+const walkEngine = {
+  watchId: null,
+  isRunning: false,
+  isPaused: false,
+  startTs: 0,
+  pausedAccumMs: 0,
+  pauseStartTs: 0,
+  totalDistanceM: 0,
+  lastPosition: null,
+  currentSpeedMS: null,
+  intervalHandle: null
+};
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function metersToUnit(m) { return walkUnits === 'mi' ? m / 1609.344 : m / 1000; }
+function walkUnitLabel() { return walkUnits === 'mi' ? 'mi' : 'km'; }
+function speedMsToUnitPerHour(ms) { return walkUnits === 'mi' ? ms * 2.23694 : ms * 3.6; }
+
+function startWalk() {
+  if (!('geolocation' in navigator)) { showToast('Geolocation is not available in this browser.'); return; }
+  walkEngine.isRunning = true;
+  walkEngine.isPaused = false;
+  walkEngine.startTs = performance.now();
+  walkEngine.pausedAccumMs = 0;
+  walkEngine.totalDistanceM = 0;
+  walkEngine.lastPosition = null;
+  walkEngine.currentSpeedMS = null;
+  $('#walk-start-btn').classList.add('hidden');
+  $('#walk-controls-row').classList.remove('hidden');
+  $('#walk-gps-status').textContent = 'Acquiring GPS signal…';
+  requestWakeLock();
+  walkEngine.watchId = navigator.geolocation.watchPosition(onWalkPosition, onWalkPositionError, {
+    enableHighAccuracy: true, maximumAge: 2000, timeout: 15000
+  });
+  walkEngine.intervalHandle = setInterval(renderWalkStats, 1000);
+}
+
+function onWalkPosition(pos) {
+  if (walkEngine.isPaused) return;
+  const { latitude, longitude, speed, accuracy } = pos.coords;
+  if (accuracy && accuracy > 50) { $('#walk-gps-status').textContent = 'Weak GPS signal (±' + Math.round(accuracy) + 'm) — distance may be less accurate.'; return; }
+  $('#walk-gps-status').textContent = '';
+  if (walkEngine.lastPosition) {
+    const d = haversineMeters(walkEngine.lastPosition.lat, walkEngine.lastPosition.lon, latitude, longitude);
+    if (d > 2) walkEngine.totalDistanceM += d; // ignore GPS jitter while stationary
+  }
+  walkEngine.lastPosition = { lat: latitude, lon: longitude };
+  walkEngine.currentSpeedMS = (typeof speed === 'number' && speed >= 0) ? speed : null;
+}
+
+function onWalkPositionError(err) {
+  $('#walk-gps-status').textContent = 'GPS error: ' + err.message + ' — check location permission for this site.';
+}
+
+function pauseWalk() {
+  if (!walkEngine.isRunning || walkEngine.isPaused) return;
+  walkEngine.isPaused = true;
+  walkEngine.pauseStartTs = performance.now();
+  $('#walk-pause-btn').textContent = '▶ RESUME';
+}
+function resumeWalk() {
+  if (!walkEngine.isRunning || !walkEngine.isPaused) return;
+  walkEngine.pausedAccumMs += performance.now() - walkEngine.pauseStartTs;
+  walkEngine.isPaused = false;
+  walkEngine.lastPosition = null; // re-baseline so the pause gap isn't counted as distance
+  $('#walk-pause-btn').textContent = '⏸ PAUSE';
+}
+
+function stopWalk() {
+  if (!walkEngine.isRunning) return;
+  if (walkEngine.watchId !== null) navigator.geolocation.clearWatch(walkEngine.watchId);
+  clearInterval(walkEngine.intervalHandle);
+  releaseWakeLock();
+  const elapsedSec = Math.round(((performance.now() - walkEngine.startTs) - walkEngine.pausedAccumMs) / 1000);
+  if (walkEngine.totalDistanceM > 10) { // skip saving negligible/accidental starts
+    walks.unshift({ date: new Date().toISOString(), distanceMeters: walkEngine.totalDistanceM, elapsedSeconds: elapsedSec, units: walkUnits });
+    walks = walks.slice(0, 100);
+    saveJSON(LS_KEYS.walks, walks);
+    renderWalkHistory();
+  }
+  walkEngine.isRunning = false;
+  walkEngine.isPaused = false;
+  $('#walk-start-btn').classList.remove('hidden');
+  $('#walk-controls-row').classList.add('hidden');
+  $('#walk-pause-btn').textContent = '⏸ PAUSE';
+  $('#walk-gps-status').textContent = '';
+  renderWalkStats();
+}
+
+function renderWalkStats() {
+  const pauseGapMs = walkEngine.isPaused ? (performance.now() - walkEngine.pauseStartTs) : 0;
+  const elapsedSec = walkEngine.isRunning ? Math.max(0, ((performance.now() - walkEngine.startTs) - walkEngine.pausedAccumMs - pauseGapMs) / 1000) : 0;
+  const distanceUnit = metersToUnit(walkEngine.totalDistanceM);
+  $('#walk-distance').textContent = distanceUnit.toFixed(2) + ' ' + walkUnitLabel();
+  const perHour = walkEngine.currentSpeedMS != null ? speedMsToUnitPerHour(walkEngine.currentSpeedMS)
+    : (elapsedSec > 0 ? distanceUnit / (elapsedSec / 3600) : 0);
+  const paceMinPerUnit = distanceUnit > 0.01 ? (elapsedSec / 60) / distanceUnit : 0;
+  const paceLabel = paceMinPerUnit > 0
+    ? Math.floor(paceMinPerUnit) + ':' + String(Math.round((paceMinPerUnit % 1) * 60)).padStart(2, '0') + ' /' + walkUnitLabel()
+    : '-- /' + walkUnitLabel();
+  $('#walk-substats').textContent = formatDuration(elapsedSec) + ' elapsed · ' + perHour.toFixed(1) + ' ' + walkUnitLabel() + '/h · ' + paceLabel + ' pace';
+}
+
+function renderWalkHistory() {
+  const list = $('#walk-history-list');
+  if (!walks.length) { list.innerHTML = '<p class="hint">No walks logged yet.</p>'; return; }
+  list.innerHTML = '';
+  walks.forEach(w => {
+    const d = new Date(w.date);
+    const dist = w.units === 'km' ? w.distanceMeters / 1000 : w.distanceMeters / 1609.344;
+    const paceMinPerUnit = dist > 0.01 ? (w.elapsedSeconds / 60) / dist : 0;
+    const paceLabel = paceMinPerUnit > 0 ? Math.floor(paceMinPerUnit) + ':' + String(Math.round((paceMinPerUnit % 1) * 60)).padStart(2, '0') : '--';
+    const div = document.createElement('div');
+    div.className = 'history-entry';
+    div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="h-meta">${dist.toFixed(2)} ${w.units} · ${formatDuration(w.elapsedSeconds)} · ${paceLabel} /${w.units} pace</div>`;
+    list.appendChild(div);
+  });
+}
+
+$('#walk-start-btn').addEventListener('click', debounceClick(startWalk));
+$('#walk-pause-btn').addEventListener('click', debounceClick(() => { if (walkEngine.isPaused) resumeWalk(); else pauseWalk(); }));
+$('#walk-stop-btn').addEventListener('click', debounceClick(() => { if (confirm('Stop and save this walk?')) stopWalk(); }));
+$('#walk-units-mi').addEventListener('change', () => { walkUnits = 'mi'; localStorage.setItem(LS_KEYS.walkUnits, 'mi'); renderWalkStats(); renderWalkHistory(); });
+$('#walk-units-km').addEventListener('change', () => { walkUnits = 'km'; localStorage.setItem(LS_KEYS.walkUnits, 'km'); renderWalkStats(); renderWalkHistory(); });
+$('#clear-walks-btn').addEventListener('click', debounceClick(() => {
+  if (!confirm('Clear all walk history?')) return;
+  walks = [];
+  saveJSON(LS_KEYS.walks, walks);
+  renderWalkHistory();
+}));
+
+/* ============================================================
    SECTION 17: INIT
 ============================================================ */
 function init() {
@@ -1887,9 +2221,13 @@ function init() {
   setPhaseUI('idle');
   updateRing(0);
 
-  // Prevent accidental navigation away mid-workout.
+  $('#walk-units-' + walkUnits).checked = true;
+  renderWalkStats();
+  renderWalkHistory();
+
+  // Prevent accidental navigation away mid-workout or mid-walk.
   window.addEventListener('beforeunload', (e) => {
-    if (engine.isRunning) { e.preventDefault(); e.returnValue = ''; }
+    if (engine.isRunning || walkEngine.isRunning) { e.preventDefault(); e.returnValue = ''; }
   });
 
   // Re-acquire wake lock if page regains visibility mid-workout.
