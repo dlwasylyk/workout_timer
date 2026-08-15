@@ -1058,6 +1058,29 @@ if (!presets) {
 let activePresetName = localStorage.getItem(LS_KEYS.activePreset) || 'Morning Workout';
 if (!presets[activePresetName]) activePresetName = Object.keys(presets)[0];
 
+// Presets are saved as static snapshots at the moment a segment is added,
+// so library updates (new/animated SVGs, revised form cues) never reach
+// an existing preset on their own. Refresh just the generated content
+// (graphic/text/mistakes) for any segment tied to a known exercise —
+// never touches name/duration/reps, which are the user-editable fields.
+(function syncLibraryContent() {
+  let changed = false;
+  Object.keys(presets).forEach(presetName => {
+    presets[presetName].forEach(seg => {
+      if (seg.type === 'instruction' && seg.exerciseKey && EXERCISE_MAP[seg.exerciseKey]) {
+        const ex = EXERCISE_MAP[seg.exerciseKey];
+        if (seg.svg !== ex.svg || seg.text !== ex.text || seg.mistakes !== ex.mistakes) {
+          seg.svg = ex.svg;
+          seg.text = ex.text;
+          seg.mistakes = ex.mistakes;
+          changed = true;
+        }
+      }
+    });
+  });
+  if (changed) saveJSON(LS_KEYS.presets, presets);
+})();
+
 let history = loadJSON(LS_KEYS.history, []);
 let walks = loadJSON(LS_KEYS.walks, []);
 let walkUnits = localStorage.getItem(LS_KEYS.walkUnits) || 'mi';
