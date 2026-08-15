@@ -124,6 +124,12 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
 
 #walk-distance { font-size: clamp(40px, 14vw, 64px); font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 6px; color: var(--warmup); }
 #walk-substats { font-size: 14px; }
+
+/* Animated stick-figure limbs: a <g> wrapping the moving limb, pivoting at
+   the joint via an inline transform-origin, swinging between --rot-a/--rot-b. */
+@keyframes limbSwing { 0%, 100% { transform: rotate(var(--rot-a, 0deg)); } 50% { transform: rotate(var(--rot-b, -30deg)); } }
+.limb-anim { animation: limbSwing 1.8s ease-in-out infinite; }
+#instruction-graphic svg { overflow: visible; }
 #start-btn { background: var(--strength); color: #14100a; font-size: 20px; padding: 18px; width: 100%; }
 .btn-pause { background: var(--warmup); }
 .btn-complete { background: var(--rest); color: #0d1a02; }
@@ -319,7 +325,10 @@ select, input[type=range] { width: 100%; }
     <div class="panel">
       <h2>Segments</h2>
       <div id="segment-list"></div>
-      <button id="add-segment-btn" style="width:100%;margin-top:8px;">+ Add Segment</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <button id="add-segment-btn">+ Add Segment</button>
+        <button id="add-from-library-btn" style="background:var(--strength);color:#14100a;">📚 From Library</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -550,6 +559,16 @@ select, input[type=range] { width: 100%; }
     </div>
   </div>
 
+  <!-- ============================= EXERCISE LIBRARY MODAL ============================= -->
+  <div id="library-modal" class="modal-overlay">
+    <div class="panel" style="max-height:82vh;display:flex;flex-direction:column;">
+      <h2>Add From Exercise Library</h2>
+      <p class="hint">Each adds 2 sets with its own instruction screen — edit the segments afterward to change sets, time, or reps.</p>
+      <div id="library-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
+      <button id="library-close-btn" style="width:100%;margin-top:10px;">Close</button>
+    </div>
+  </div>
+
   <div id="toast-wrap"></div>
 </div>
 
@@ -656,26 +675,265 @@ const SVG_FARMERS_CARRY = `
   <text x="60" y="20" fill="#F5A623" font-size="11">shoulders back, tall</text>
 </svg>`;
 
+// Animated pilot #1: seated arm curls. The forearm+dumbbell group swings
+// around the elbow pivot via the shared .limb-anim CSS keyframe.
+const SVG_ARM_CURL = `
+<svg viewBox="0 0 200 220" xmlns="${SVG_NS}">
+  ${arrowDefs('arrCurl', '#7ED321')}
+  <rect x="88" y="120" width="14" height="60" rx="3" fill="#333" stroke="#555"/>
+  <circle cx="95" cy="40" r="16" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="56" x2="95" y2="120" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="70" x2="80" y2="105" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="70" x2="108" y2="105" stroke="#fff" stroke-width="4"/>
+  <g class="limb-anim" style="transform-origin:108px 105px; --rot-a:0deg; --rot-b:-110deg;">
+    <line x1="108" y1="105" x2="108" y2="145" stroke="#fff" stroke-width="4"/>
+    <rect x="98" y="140" width="20" height="13" rx="2" fill="#F5A623"/>
+  </g>
+  <path d="M150 110 L150 65" stroke="#7ED321" stroke-width="3" marker-end="url(#arrCurl)"/>
+  <text x="128" y="55" fill="#7ED321" font-size="11">curl up</text>
+  <text x="14" y="100" fill="#F5A623" font-size="10">elbow fixed at side</text>
+</svg>`;
+
+// Animated pilot #2: incline bench press. The forearm+dumbbell group
+// extends up and outward along the incline via the same .limb-anim class.
+const SVG_INCLINE_PRESS = `
+<svg viewBox="0 0 200 200" xmlns="${SVG_NS}">
+  ${arrowDefs('arrIncline', '#7ED321')}
+  <rect x="25" y="118" width="150" height="14" rx="3" fill="#333" stroke="#555" transform="rotate(-18 25 118)"/>
+  <circle cx="55" cy="90" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="67" y1="99" x2="128" y2="125" stroke="#fff" stroke-width="4"/>
+  <line x1="128" y1="125" x2="163" y2="113" stroke="#fff" stroke-width="4"/>
+  <line x1="128" y1="125" x2="140" y2="162" stroke="#fff" stroke-width="4"/>
+  <line x1="88" y1="110" x2="92" y2="75" stroke="#fff" stroke-width="4"/>
+  <g class="limb-anim" style="transform-origin:92px 75px; --rot-a:35deg; --rot-b:-25deg;">
+    <line x1="92" y1="75" x2="88" y2="35" stroke="#fff" stroke-width="4"/>
+    <rect x="78" y="22" width="20" height="13" rx="2" fill="#F5A623"/>
+  </g>
+  <path d="M115 60 L135 20" stroke="#7ED321" stroke-width="3" marker-end="url(#arrIncline)"/>
+  <text x="118" y="14" fill="#7ED321" font-size="11">press up &amp; out</text>
+  <text x="15" y="135" fill="#F5A623" font-size="10">bench angled ~30°</text>
+</svg>`;
+
+const SVG_TRICEPS_EXT = `
+<svg viewBox="0 0 200 220" xmlns="${SVG_NS}">
+  ${arrowDefs('arrTricep', '#7ED321')}
+  <circle cx="100" cy="35" r="15" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="50" x2="100" y2="130" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="130" x2="82" y2="190" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="130" x2="118" y2="190" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="58" x2="95" y2="25" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="25" x2="75" y2="50" stroke="#fff" stroke-width="4"/>
+  <rect x="63" y="44" width="20" height="13" rx="2" fill="#F5A623" transform="rotate(-35 73 51)"/>
+  <path d="M60 40 L60 10" stroke="#7ED321" stroke-width="3" marker-end="url(#arrTricep)"/>
+  <text x="18" y="14" fill="#7ED321" font-size="11">extend up</text>
+  <text x="105" y="30" fill="#F5A623" font-size="10">elbows in</text>
+</svg>`;
+
+const SVG_LUNGES = `
+<svg viewBox="0 0 220 200" xmlns="${SVG_NS}">
+  ${arrowDefs('arrLunge', '#7ED321')}
+  <circle cx="100" cy="35" r="15" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="50" x2="100" y2="110" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="65" x2="80" y2="100" stroke="#fff" stroke-width="4"/>
+  <circle cx="76" cy="108" r="9" fill="#F5A623"/>
+  <line x1="100" y1="65" x2="120" y2="100" stroke="#fff" stroke-width="4"/>
+  <circle cx="124" cy="108" r="9" fill="#F5A623"/>
+  <line x1="100" y1="110" x2="140" y2="140" stroke="#fff" stroke-width="4"/>
+  <line x1="140" y1="140" x2="140" y2="185" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="110" x2="70" y2="150" stroke="#fff" stroke-width="4"/>
+  <line x1="70" y1="150" x2="95" y2="185" stroke="#fff" stroke-width="4"/>
+  <path d="M 55 150 A 20 20 0 0 1 70 130" stroke="#F5A623" stroke-width="2" fill="none"/>
+  <text x="15" y="145" fill="#F5A623" font-size="10">90°</text>
+  <path d="M170 130 L170 170" stroke="#7ED321" stroke-width="3" marker-end="url(#arrLunge)"/>
+  <text x="148" y="120" fill="#7ED321" font-size="11">step &amp; lower</text>
+</svg>`;
+
+const SVG_RDL = `
+<svg viewBox="0 0 220 200" xmlns="${SVG_NS}">
+  ${arrowDefs('arrRDL', '#7ED321')}
+  <circle cx="70" cy="55" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="80" y1="65" x2="140" y2="95" stroke="#fff" stroke-width="4"/>
+  <line x1="140" y1="95" x2="145" y2="150" stroke="#fff" stroke-width="4"/>
+  <line x1="145" y1="150" x2="145" y2="190" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="72" x2="70" y2="130" stroke="#fff" stroke-width="4"/>
+  <rect x="58" y="125" width="20" height="13" rx="2" fill="#F5A623"/>
+  <path d="M 155 100 A 25 25 0 0 1 140 80" stroke="#F5A623" stroke-width="2" fill="none"/>
+  <text x="158" y="95" fill="#F5A623" font-size="10">hinge, flat back</text>
+  <path d="M40 130 L40 60" stroke="#7ED321" stroke-width="3" marker-end="url(#arrRDL)"/>
+  <text x="2" y="55" fill="#7ED321" font-size="11">stand tall</text>
+</svg>`;
+
+const SVG_CALF_RAISE = `
+<svg viewBox="0 0 200 220" xmlns="${SVG_NS}">
+  ${arrowDefs('arrCalf', '#7ED321')}
+  <circle cx="100" cy="40" r="15" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="55" x2="100" y2="130" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="65" x2="75" y2="110" stroke="#fff" stroke-width="4"/>
+  <circle cx="72" cy="118" r="9" fill="#F5A623"/>
+  <line x1="100" y1="65" x2="125" y2="110" stroke="#fff" stroke-width="4"/>
+  <circle cx="128" cy="118" r="9" fill="#F5A623"/>
+  <line x1="100" y1="130" x2="90" y2="175" stroke="#fff" stroke-width="4"/>
+  <line x1="90" y1="175" x2="90" y2="188" stroke="#fff" stroke-width="4"/>
+  <line x1="88" y1="188" x2="105" y2="188" stroke="#fff" stroke-width="4"/>
+  <line x1="100" y1="130" x2="112" y2="175" stroke="#fff" stroke-width="4"/>
+  <line x1="112" y1="175" x2="112" y2="188" stroke="#fff" stroke-width="4"/>
+  <line x1="110" y1="188" x2="127" y2="188" stroke="#fff" stroke-width="4"/>
+  <path d="M150 175 L150 145" stroke="#7ED321" stroke-width="3" marker-end="url(#arrCalf)"/>
+  <text x="130" y="140" fill="#7ED321" font-size="11">rise onto toes</text>
+</svg>`;
+
+const SVG_REVERSE_FLY = `
+<svg viewBox="0 0 220 180" xmlns="${SVG_NS}">
+  ${arrowDefs('arrRFly', '#7ED321')}
+  <circle cx="70" cy="50" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="80" y1="60" x2="140" y2="90" stroke="#fff" stroke-width="4"/>
+  <line x1="140" y1="90" x2="145" y2="140" stroke="#fff" stroke-width="4"/>
+  <line x1="145" y1="140" x2="145" y2="175" stroke="#fff" stroke-width="4"/>
+  <line x1="95" y1="68" x2="70" y2="45" stroke="#fff" stroke-width="4"/>
+  <circle cx="65" cy="42" r="9" fill="#F5A623"/>
+  <line x1="110" y1="75" x2="130" y2="55" stroke="#fff" stroke-width="4"/>
+  <circle cx="134" cy="52" r="9" fill="#F5A623"/>
+  <path d="M65 55 L45 35" stroke="#7ED321" stroke-width="3" marker-end="url(#arrRFly)"/>
+  <path d="M134 62 L155 40" stroke="#7ED321" stroke-width="3" marker-end="url(#arrRFly)"/>
+  <text x="8" y="105" fill="#F5A623" font-size="10">hinge forward, flat back</text>
+</svg>`;
+
+const SVG_SUPERMAN = `
+<svg viewBox="0 0 220 140" xmlns="${SVG_NS}">
+  ${arrowDefs('arrSuper', '#7ED321')}
+  <line x1="10" y1="110" x2="210" y2="110" stroke="#333" stroke-width="4" stroke-dasharray="4,4"/>
+  <circle cx="55" cy="70" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="65" y1="72" x2="150" y2="80" stroke="#fff" stroke-width="4"/>
+  <line x1="150" y1="80" x2="195" y2="65" stroke="#fff" stroke-width="4"/>
+  <line x1="65" y1="70" x2="20" y2="55" stroke="#fff" stroke-width="4"/>
+  <path d="M55 90 L55 70" stroke="#7ED321" stroke-width="2" marker-end="url(#arrSuper)"/>
+  <path d="M195 85 L195 65" stroke="#7ED321" stroke-width="2" marker-end="url(#arrSuper)"/>
+  <text x="60" y="30" fill="#7ED321" font-size="11">lift arms &amp; legs, hold</text>
+</svg>`;
+
+const SVG_DB_FLYES = `
+<svg viewBox="0 0 220 160" xmlns="${SVG_NS}">
+  ${arrowDefs('arrFly', '#7ED321')}
+  <rect x="30" y="120" width="160" height="14" rx="3" fill="#333" stroke="#555"/>
+  <circle cx="55" cy="95" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="69" y1="102" x2="150" y2="112" stroke="#fff" stroke-width="4"/>
+  <line x1="150" y1="112" x2="185" y2="118" stroke="#fff" stroke-width="4"/>
+  <line x1="150" y1="112" x2="130" y2="130" stroke="#fff" stroke-width="4"/>
+  <line x1="85" y1="105" x2="55" y2="70" stroke="#fff" stroke-width="4"/>
+  <circle cx="50" cy="62" r="9" fill="#F5A623"/>
+  <line x1="105" y1="108" x2="135" y2="72" stroke="#fff" stroke-width="4"/>
+  <circle cx="140" cy="65" r="9" fill="#F5A623"/>
+  <path d="M60 68 L90 45" stroke="#7ED321" stroke-width="3" marker-end="url(#arrFly)"/>
+  <path d="M138 68 L100 48" stroke="#7ED321" stroke-width="3" marker-end="url(#arrFly)"/>
+  <text x="62" y="30" fill="#7ED321" font-size="11">arc together</text>
+  <text x="92" y="102" fill="#F5A623" font-size="10">slight elbow bend</text>
+</svg>`;
+
+const SVG_PUSHUP = `
+<svg viewBox="0 0 220 140" xmlns="${SVG_NS}">
+  ${arrowDefs('arrPushup', '#7ED321')}
+  <line x1="10" y1="115" x2="210" y2="115" stroke="#333" stroke-width="4" stroke-dasharray="4,4"/>
+  <circle cx="185" cy="75" r="14" fill="none" stroke="#fff" stroke-width="4"/>
+  <line x1="173" y1="80" x2="70" y2="90" stroke="#fff" stroke-width="4"/>
+  <line x1="70" y1="90" x2="30" y2="112" stroke="#fff" stroke-width="4"/>
+  <line x1="175" y1="88" x2="150" y2="112" stroke="#fff" stroke-width="4"/>
+  <path d="M100 95 L100 60" stroke="#7ED321" stroke-width="3" marker-end="url(#arrPushup)"/>
+  <text x="58" y="50" fill="#7ED321" font-size="11">press body up</text>
+  <text x="25" y="130" fill="#F5A623" font-size="10">straight line head to heels</text>
+</svg>`;
+
 /* ============================================================
    SECTION 2: WORKOUT DATA MODEL
 ============================================================ */
+// The 5 exercises used by the default "Morning Workout" preset — unchanged,
+// so the existing daily routine isn't disrupted by library growth below.
 const EXERCISES = [
-  { key: 'gobletSquat', name: 'Goblet Squats', reps: 15, workSeconds: 60, rest: 90, svg: SVG_GOBLET_SQUAT,
+  { key: 'gobletSquat', name: 'Goblet Squats', category: 'Legs', reps: 15, workSeconds: 60, rest: 90, svg: SVG_GOBLET_SQUAT,
     text: 'Hold dumbbell against chest. Lower until thighs parallel to floor. Keep chest up. Return to standing.',
     mistakes: "Don't let knees cave inward. Keep weight on heels." },
-  { key: 'dbRow', name: 'Dumbbell Rows', reps: 15, repsNote: '(each side)', workSeconds: 60, rest: 90, svg: SVG_DB_ROW,
+  { key: 'dbRow', name: 'Dumbbell Rows', category: 'Back', reps: 15, repsNote: '(each side)', workSeconds: 60, rest: 90, svg: SVG_DB_ROW,
     text: 'Hinge at hips with flat back. Pull weight to lower ribs. Squeeze shoulder blade. Lower controlled.',
     mistakes: "Don't round your back. Keep neck neutral." },
-  { key: 'chestPress', name: 'Dumbbell Chest Press', reps: 15, workSeconds: 60, rest: 90, svg: SVG_CHEST_PRESS,
+  { key: 'chestPress', name: 'Dumbbell Chest Press', category: 'Chest', reps: 15, workSeconds: 60, rest: 90, svg: SVG_CHEST_PRESS,
     text: 'Lie flat, feet planted. Lower elbows to just below bench. Press up without locking elbows.',
     mistakes: "Don't flare elbows to 90°. Keep at 45° angle." },
-  { key: 'shoulderPress', name: 'Seated Shoulder Press', reps: 12, workSeconds: 60, rest: 90, svg: SVG_SHOULDER_PRESS,
+  { key: 'shoulderPress', name: 'Seated Shoulder Press', category: 'Arms', reps: 12, workSeconds: 60, rest: 90, svg: SVG_SHOULDER_PRESS,
     text: 'Sit with back support. Press overhead until elbows are straight. Stop at shoulder height on way down.',
     mistakes: "Don't arch back. Don't go below shoulder height." },
-  { key: 'farmersCarry', name: "Farmer's Carry", reps: null, workSeconds: 30, rest: 90, svg: SVG_FARMERS_CARRY,
+  { key: 'farmersCarry', name: "Farmer's Carry", category: 'Full Body', reps: null, workSeconds: 30, rest: 90, svg: SVG_FARMERS_CARRY,
     text: 'Stand tall, shoulders back. Hold weights at sides. Walk 50 feet or for 30 seconds. Keep core tight.',
     mistakes: "Don't shrug shoulders. Don't lean forward." }
 ];
+
+// Additional library exercises — not part of the Morning Workout by default,
+// but available to insert into any preset via Builder > Add From Exercise
+// Library, so friends can assemble their own routines with variety.
+const EXTRA_EXERCISES = [
+  { key: 'armCurl', name: 'Seated Arm Curls', category: 'Arms', reps: 12, workSeconds: 60, rest: 90, svg: SVG_ARM_CURL,
+    text: 'Sit tall, elbow pinned at your side. Curl dumbbell to shoulder. Lower with control until arm is straight.',
+    mistakes: "Don't swing the shoulder to help. Don't let the elbow drift forward." },
+  { key: 'inclinePress', name: 'Incline Bench Press', category: 'Chest', reps: 12, workSeconds: 60, rest: 90, svg: SVG_INCLINE_PRESS,
+    text: 'On an angled bench, press dumbbells up and slightly outward from chest level. Lower until elbows are just below the bench.',
+    mistakes: "Don't bounce weights off your chest. Don't flare elbows past 45°." },
+  { key: 'tricepExt', name: 'Overhead Triceps Extension', category: 'Arms', reps: 12, workSeconds: 60, rest: 90, svg: SVG_TRICEPS_EXT,
+    text: 'Hold dumbbell overhead with both hands. Lower behind head by bending elbows. Extend back up without flaring elbows.',
+    mistakes: "Don't let elbows splay outward. Don't arch your lower back." },
+  { key: 'lunges', name: 'Walking Lunges', category: 'Legs', reps: 12, repsNote: '(each side)', workSeconds: 60, rest: 90, svg: SVG_LUNGES,
+    text: 'Step forward into a lunge until both knees reach about 90°. Push off the front foot to step into the next lunge.',
+    mistakes: "Don't let the front knee pass the toes. Keep torso upright." },
+  { key: 'rdl', name: 'Romanian Deadlift', category: 'Legs', reps: 12, workSeconds: 60, rest: 90, svg: SVG_RDL,
+    text: 'Hinge at the hips with a flat back, dumbbells close to your legs. Lower until you feel a hamstring stretch, then stand tall.',
+    mistakes: "Don't round your back. Don't lock your knees." },
+  { key: 'calfRaise', name: 'Calf Raises', category: 'Legs', reps: 20, workSeconds: 45, rest: 60, svg: SVG_CALF_RAISE,
+    text: 'Stand tall holding dumbbells at your sides. Rise onto your toes, pause, then lower with control.',
+    mistakes: "Don't rush the movement. Don't let ankles roll outward." },
+  { key: 'reverseFly', name: 'Bent-Over Reverse Fly', category: 'Back', reps: 15, workSeconds: 60, rest: 90, svg: SVG_REVERSE_FLY,
+    text: 'Hinge forward with a flat back. Raise dumbbells out to the sides, squeezing shoulder blades together. Lower with control.',
+    mistakes: "Don't use momentum to swing the weights. Keep a slight elbow bend." },
+  { key: 'superman', name: 'Superman Hold', category: 'Back', reps: null, workSeconds: 30, rest: 45, svg: SVG_SUPERMAN,
+    text: 'Lie face down. Lift arms, chest, and legs off the floor at the same time. Hold, then lower with control.',
+    mistakes: "Don't yank your neck up. Move smoothly, not with a jerk." },
+  { key: 'dbFlyes', name: 'Dumbbell Flyes', category: 'Chest', reps: 12, workSeconds: 60, rest: 90, svg: SVG_DB_FLYES,
+    text: 'Lie flat, arms wide with a slight elbow bend. Arc dumbbells up and together above your chest, then lower with control.',
+    mistakes: "Don't straighten elbows completely. Don't let weights drop too low." },
+  { key: 'pushup', name: 'Push-Ups', category: 'Chest', reps: 15, workSeconds: 45, rest: 60, svg: SVG_PUSHUP,
+    text: 'Hold a straight line from head to heels. Lower chest toward the floor, then press back up.',
+    mistakes: "Don't let hips sag. Don't flare elbows to 90°." }
+];
+
+// The full pickable set, used by the Builder's exercise library and by the
+// instruction-overlay re-show lookup — the default program only uses EXERCISES.
+const EXERCISE_LIBRARY = EXERCISES.concat(EXTRA_EXERCISES);
+
+// Shared segment-builder for N sets of one exercise: an instruction screen
+// before set 1, then (work + rest) pairs. Used both by the default Morning
+// Workout and by Builder > Add From Exercise Library.
+function buildExerciseSegments(ex, sets) {
+  const segs = [];
+  const totalSets = sets || 2;
+  for (let set = 1; set <= totalSets; set++) {
+    if (set === 1) {
+      segs.push({
+        phase: 'strength', type: 'instruction', name: ex.name, exerciseKey: ex.key,
+        svg: ex.svg, text: ex.text, mistakes: ex.mistakes, reps: ex.reps, repsNote: ex.repsNote || ''
+      });
+    }
+    segs.push({
+      phase: 'strength', type: 'time', name: ex.name, exerciseKey: ex.key,
+      duration: ex.workSeconds, setNumber: set, totalSets: totalSets, targetReps: ex.reps,
+      announceStart: `Begin ${ex.name}`,
+      warnings: [{ at: 10, msg: '10 seconds remaining' }],
+      endMsg: `Set complete, rest for ${ex.rest} seconds`
+    });
+    segs.push({
+      phase: 'rest', type: 'time', name: 'Rest', exerciseKey: ex.key,
+      duration: ex.rest, setNumber: set, totalSets: totalSets,
+      warnings: [{ at: 30, msg: '30 seconds remaining' }, { at: 10, msg: '10 seconds remaining' }],
+      endMsg: set === 1 ? 'Rest over, prepare for set 2' : 'Rest over'
+    });
+  }
+  return segs;
+}
 
 // Build the default "Morning Workout" as a flat segment list.
 function buildMorningWorkout() {
@@ -696,29 +954,7 @@ function buildMorningWorkout() {
     announceStart: 'Begin overhead band stretch', secondsPerRep: 3 });
 
   // --- Strength: 5 exercises x 2 sets ---
-  EXERCISES.forEach((ex) => {
-    for (let set = 1; set <= 2; set++) {
-      if (set === 1) {
-        segs.push({
-          phase: 'strength', type: 'instruction', name: ex.name, exerciseKey: ex.key,
-          svg: ex.svg, text: ex.text, mistakes: ex.mistakes, reps: ex.reps, repsNote: ex.repsNote || ''
-        });
-      }
-      segs.push({
-        phase: 'strength', type: 'time', name: ex.name, exerciseKey: ex.key,
-        duration: ex.workSeconds, setNumber: set, totalSets: 2, targetReps: ex.reps,
-        announceStart: `Begin ${ex.name}`,
-        warnings: [{ at: 10, msg: '10 seconds remaining' }],
-        endMsg: `Set complete, rest for ${ex.rest} seconds`
-      });
-      segs.push({
-        phase: 'rest', type: 'time', name: 'Rest', exerciseKey: ex.key,
-        duration: ex.rest, setNumber: set, totalSets: 2,
-        warnings: [{ at: 30, msg: '30 seconds remaining' }, { at: 10, msg: '10 seconds remaining' }],
-        endMsg: set === 1 ? 'Rest over, prepare for set 2' : 'Rest over'
-      });
-    }
-  });
+  EXERCISES.forEach((ex) => { segs.push(...buildExerciseSegments(ex, 2)); });
 
   // --- Cooldown ---
   segs.push({ phase: 'cooldown', name: 'Walking Cooldown', type: 'time', duration: 180,
@@ -728,7 +964,7 @@ function buildMorningWorkout() {
 }
 
 const EXERCISE_MAP = {};
-EXERCISES.forEach(ex => EXERCISE_MAP[ex.key] = ex);
+EXERCISE_LIBRARY.forEach(ex => EXERCISE_MAP[ex.key] = ex);
 
 /* ============================================================
    SECTION 3: PERSISTENCE (localStorage)
@@ -1529,6 +1765,52 @@ function saveSegmentEditor() {
 $('#seg-edit-cancel-btn').addEventListener('click', debounceClick(closeSegmentEditor));
 $('#seg-edit-save-btn').addEventListener('click', debounceClick(saveSegmentEditor));
 $('#add-segment-btn').addEventListener('click', debounceClick(() => openSegmentEditor(undefined)));
+
+/* ---- Exercise library picker: insert a ready-made exercise (with its own
+   instruction screen, SVG, and 2 sets) into the active preset. ---- */
+function renderLibraryList() {
+  const container = $('#library-list');
+  const categories = {};
+  EXERCISE_LIBRARY.forEach(ex => { (categories[ex.category] = categories[ex.category] || []).push(ex); });
+  container.innerHTML = Object.keys(categories).map(cat => `
+    <h3 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px;">${cat}</h3>
+    ${categories[cat].map(ex => `
+      <div class="segment-item">
+        <div class="seg-top">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <div style="width:40px;height:40px;flex-shrink:0;">${ex.svg}</div>
+            <div style="min-width:0;">
+              <div class="seg-title">${ex.name}</div>
+              <div class="seg-meta">2 sets × ${ex.reps ? ex.reps + ' reps' : ex.workSeconds + 's'}</div>
+            </div>
+          </div>
+          <button data-add="${ex.key}" class="small-btn">+ Add</button>
+        </div>
+      </div>
+    `).join('')}
+  `).join('');
+  container.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', debounceClick(() => addExerciseFromLibrary(btn.dataset.add)));
+  });
+}
+
+function addExerciseFromLibrary(exerciseKey) {
+  const ex = EXERCISE_MAP[exerciseKey];
+  if (!ex) return;
+  const segs = presets[activePresetName];
+  segs.push(...buildExerciseSegments(ex, 2));
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+  showToast('Added ' + ex.name + ' (2 sets)');
+}
+
+$('#add-from-library-btn').addEventListener('click', debounceClick(() => {
+  renderLibraryList();
+  $('#library-modal').classList.add('active');
+}));
+$('#library-close-btn').addEventListener('click', debounceClick(() => {
+  $('#library-modal').classList.remove('active');
+}));
 
 $('#preset-select').addEventListener('change', e => {
   activePresetName = e.target.value;
