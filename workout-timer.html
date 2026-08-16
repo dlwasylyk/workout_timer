@@ -100,6 +100,19 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
 
 #controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; width: 100%; }
 
+#workout-preview { margin: 4px 0 10px; }
+#workout-preview .wp-summary { font-size: 13px; color: var(--muted); }
+#workout-preview .wp-breakdown { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin-top: 6px; font-size: 12px; }
+#workout-preview .wp-breakdown span { color: var(--muted); }
+#workout-preview .wp-breakdown b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+#rest-adjust-row {
+  display: none; grid-template-columns: 1fr 1fr auto; gap: 10px; width: 100%; margin-top: 14px;
+}
+#rest-adjust-row.active { display: grid; }
+#rest-adjust-row button { background: var(--surface2); }
+#rest-save-btn { min-width: 44px; padding: 0 12px; }
+
 #mini-spotify-bar {
   display: flex; align-items: center; gap: 4px; width: 100%;
   background: #21252b; border: 1px solid #333a44; border-radius: 10px;
@@ -197,12 +210,21 @@ select, input[type=range] { width: 100%; }
 .small-btn { padding: 8px 12px; font-size: 13px; min-height: 36px; }
 
 /* ============================= BUILDER ============================= */
-.segment-item { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-.segment-item .seg-top { display: flex; justify-content: space-between; align-items: center; }
+.segment-item { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; transition: opacity .15s ease, border-color .15s ease; border: 1px solid transparent; }
+.segment-item.in-group { margin-left: 10px; border-left: 3px solid var(--strength); }
+.segment-item .seg-top { display: flex; align-items: center; gap: 8px; }
+.segment-item .seg-top > div:nth-of-type(2) { flex: 1; min-width: 0; }
+.segment-item .seg-drag-handle { flex-shrink: 0; color: var(--muted); font-size: 18px; cursor: grab; padding: 4px; touch-action: none; }
 .segment-item .seg-title { font-weight: 700; font-size: 14px; }
 .segment-item .seg-meta { font-size: 12px; color: var(--muted); }
-.segment-item .seg-actions { display: flex; gap: 6px; }
+.segment-item .seg-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .segment-item .seg-actions button { min-height: 32px; min-width: 32px; padding: 4px 8px; font-size: 12px; }
+.segment-item.dragging { opacity: 0.4; }
+.segment-item.drag-over { border-color: var(--strength); }
+.group-header {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--strength); margin: 14px 0 4px 10px;
+}
 .phase-tag { font-size: 10px; text-transform: uppercase; font-weight: 800; padding: 2px 6px; border-radius: 6px; margin-right: 6px; }
 .phase-tag.warmup { background: var(--warmup); color: #06121f; }
 .phase-tag.strength { background: var(--strength); color: #201400; }
@@ -220,12 +242,33 @@ select, input[type=range] { width: 100%; }
 .modal-overlay.active { display: flex; }
 .modal-overlay .panel { width: 100%; max-width: 420px; margin-bottom: 0; }
 
+#mood-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.mood-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; font-size: 12px; background: var(--surface2); }
+.mood-btn span { font-size: 24px; }
+.mood-btn.selected { background: var(--strength); color: #14100a; }
+#workout-note-text { width: 100%; margin-top: 6px; resize: vertical; font-family: inherit; }
+
 /* ============================= HISTORY ============================= */
 .history-entry { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 .history-entry .h-date { font-weight: 700; font-size: 14px; }
 .history-entry .h-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .history-entry ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 .history-entry ul.deviations { color: #ffb37a; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-tile { background: var(--surface2); border-radius: 10px; padding: 10px; text-align: center; }
+.stat-tile .stat-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-tile .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.stat-tile.pr-tile { grid-column: 1 / -1; text-align: left; }
+.stat-tile.pr-tile ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+
+.ex-history-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.ex-history-table th, .ex-history-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #21262e; }
+.ex-history-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+
+.set-breakdown { margin-top: 8px; font-size: 13px; }
+.set-breakdown-exercise { margin-bottom: 6px; }
+.set-row { color: var(--muted); padding-left: 8px; }
 
 /* ============================= SPOTIFY ============================= */
 .spotify-banner {
@@ -243,6 +286,21 @@ select, input[type=range] { width: 100%; }
 
 /* ============================= TOASTS ============================= */
 #toast-wrap { position: fixed; top: calc(10px + var(--safe-top)); left: 0; right: 0; z-index: 999; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+
+/* Non-blocking RIR quick-pick: floats over the timer screen after a set,
+   never pauses the workout, auto-dismisses if ignored. */
+#rir-prompt {
+  position: fixed; top: calc(56px + var(--safe-top)); left: 12px; right: 12px; max-width: 496px; margin: 0 auto;
+  z-index: 150; background: var(--surface); border: 1px solid #333a44; border-radius: 12px;
+  padding: 8px 10px; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  animation: rirSlideIn .25s ease;
+}
+#rir-prompt.hidden { display: none; }
+@keyframes rirSlideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+#rir-prompt-label { font-size: 11px; color: var(--muted); flex-shrink: 0; white-space: nowrap; }
+#rir-prompt-buttons { display: flex; gap: 5px; flex: 1; }
+#rir-prompt-buttons button { flex: 1; min-height: 40px; padding: 4px; font-size: 14px; background: var(--surface2); }
+#rir-dismiss-btn { min-height: 32px; min-width: 32px; padding: 4px 8px; background: transparent; color: var(--muted); flex-shrink: 0; }
 .toast { background: #000000cc; color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 13px; max-width: 90%; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
 
 .hidden { display: none !important; }
@@ -261,9 +319,20 @@ select, input[type=range] { width: 100%; }
   <!-- ============================= TIMER SCREEN ============================= -->
   <main id="screen-timer" class="screen active">
 
+    <div id="resume-banner" class="hidden panel" style="border:2px solid var(--strength);">
+      <h2 style="margin-top:0;">Resume workout?</h2>
+      <div id="resume-banner-title" style="font-weight:700;font-size:16px;"></div>
+      <div id="resume-banner-detail" class="hint"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <button id="resume-workout-btn" style="background:var(--strength);color:#14100a;">RESUME</button>
+        <button id="resume-start-over-btn">START OVER</button>
+      </div>
+    </div>
+
     <div id="timer-card">
       <div id="exercise-name">Ready to start</div>
       <div id="segment-sub">Tap START WORKOUT to begin the Morning Workout</div>
+      <div id="workout-preview"></div>
       <div id="set-indicator"></div>
 
       <div id="ring-wrap">
@@ -277,8 +346,11 @@ select, input[type=range] { width: 100%; }
       </div>
 
       <div id="weight-log-row">
-        <label for="quick-weight" style="font-size:13px;color:var(--muted);">Weight (lbs)</label>
-        <input type="number" id="quick-weight" inputmode="decimal" placeholder="e.g. 25">
+        <div style="flex:1;">
+          <label for="quick-weight" style="font-size:13px;color:var(--muted);">Weight (lbs)</label>
+          <input type="number" id="quick-weight" inputmode="decimal" placeholder="e.g. 25">
+          <div id="weight-hint" class="hint hidden" style="margin-top:2px;"></div>
+        </div>
       </div>
 
       <div class="progress-label">Overall workout progress</div>
@@ -286,6 +358,13 @@ select, input[type=range] { width: 100%; }
     </div>
 
     <button id="start-btn">▶ START WORKOUT</button>
+    <button id="repeat-last-btn" class="hidden" style="width:100%;margin-top:10px;background:var(--surface2);"></button>
+
+    <div id="rest-adjust-row" class="hidden">
+      <button id="rest-minus-btn">-15 sec</button>
+      <button id="rest-plus-btn">+15 sec</button>
+      <button id="rest-save-btn" title="Save this rest length to the preset">💾</button>
+    </div>
 
     <div id="controls-row" class="hidden">
       <button id="pause-btn" class="btn-pause">⏸ PAUSE</button>
@@ -333,6 +412,7 @@ select, input[type=range] { width: 100%; }
         <button id="add-segment-btn">+ Add Segment</button>
         <button id="add-from-library-btn" style="background:var(--strength);color:#14100a;">📚 From Library</button>
       </div>
+      <button id="add-group-btn" style="width:100%;margin-top:8px;">🔗 Add Superset / Circuit</button>
     </div>
 
     <div class="panel">
@@ -378,7 +458,18 @@ select, input[type=range] { width: 100%; }
   <!-- ============================= HISTORY SCREEN ============================= -->
   <section id="screen-history" class="screen">
     <div class="panel">
-      <h2>Workout History</h2>
+      <h2>Stats</h2>
+      <div id="history-stats-grid" class="stats-grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>By Exercise</h2>
+      <select id="history-exercise-select"><option value="">Choose an exercise…</option></select>
+      <div id="history-exercise-detail"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Workouts</h2>
       <div id="history-list"><p class="hint">No workouts logged yet.</p></div>
       <button id="clear-history-btn" class="small-btn" style="margin-top:8px;">Clear History</button>
     </div>
@@ -505,9 +596,12 @@ select, input[type=range] { width: 100%; }
       <div class="set-meta" id="instruction-setmeta"></div>
     </div>
     <div id="instruction-actions">
-      <div class="weight-row">
-        <label for="instruction-weight" style="font-size:13px;color:var(--muted);">Weight (lbs):</label>
-        <input type="number" id="instruction-weight" inputmode="decimal" placeholder="optional">
+      <div class="weight-row" style="flex-direction:column;align-items:stretch;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label for="instruction-weight" style="font-size:13px;color:var(--muted);">Weight (lbs):</label>
+          <input type="number" id="instruction-weight" inputmode="decimal" placeholder="optional" style="flex:1;">
+        </div>
+        <div id="instr-weight-hint" class="hint hidden"></div>
       </div>
       <button id="start-set-btn">START SET</button>
       <label class="skip-instruction-toggle">
@@ -567,10 +661,98 @@ select, input[type=range] { width: 100%; }
   <div id="library-modal" class="modal-overlay">
     <div class="panel" style="max-height:82vh;display:flex;flex-direction:column;">
       <h2>Add From Exercise Library</h2>
-      <p class="hint">Strength exercises add 1 set with its own instruction screen and no automatic rest — tap Add again for another set, and use + Add Segment to drop in a Rest wherever you actually want one. Warmup items add as a single quick segment, no instruction screen.</p>
+      <p class="hint">Strength exercises open a quick config (sets/reps/work/rest/weight) before adding. Warmup items add as a single quick segment, no instruction screen.</p>
       <div id="library-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
       <button id="library-close-btn" style="width:100%;margin-top:10px;">Close</button>
     </div>
+  </div>
+
+  <!-- ============================= ADD EXERCISE (configure sets/reps/work/rest/weight) ============================= -->
+  <div id="add-exercise-modal" class="modal-overlay">
+    <div class="panel">
+      <h2>Add Exercise</h2>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="ae-thumb" style="width:56px;height:56px;flex-shrink:0;"></div>
+        <div id="ae-name" style="font-weight:700;font-size:16px;"></div>
+      </div>
+      <div class="form-grid">
+        <div><label for="ae-sets">Sets</label><input type="number" id="ae-sets" min="1" value="1"></div>
+        <div><label for="ae-reps">Reps</label><input type="number" id="ae-reps" min="1"></div>
+        <div><label for="ae-work">Work (sec)</label><input type="number" id="ae-work" min="5"></div>
+        <div><label for="ae-rest">Rest (sec, 0 = none)</label><input type="number" id="ae-rest" min="0" value="0"></div>
+        <div class="full"><label for="ae-weight">Weight (lbs, optional)</label><input type="number" id="ae-weight" inputmode="decimal" placeholder="optional — used until real history exists"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button id="ae-cancel-btn" style="flex:1;">Cancel</button>
+        <button id="ae-add-btn" style="flex:1;background:var(--strength);color:#14100a;">ADD TO WORKOUT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= SUPERSET / CIRCUIT BUILDER ============================= -->
+  <div id="group-modal" class="modal-overlay">
+    <div class="panel" style="max-height:86vh;display:flex;flex-direction:column;">
+      <h2 id="group-modal-heading">Add Superset / Circuit</h2>
+      <div class="form-grid">
+        <div><label for="group-type">Type</label>
+          <select id="group-type">
+            <option value="Superset">Superset</option>
+            <option value="Circuit">Circuit</option>
+          </select>
+        </div>
+        <div><label for="group-label">Label</label><input type="text" id="group-label" placeholder="e.g. Superset A"></div>
+        <div><label for="group-rounds">Rounds</label><input type="number" id="group-rounds" min="1" value="3"></div>
+        <div><label for="group-rest">Rest between rounds (sec)</label><input type="number" id="group-rest" min="0" value="60"></div>
+      </div>
+      <p class="hint" style="margin-top:8px;">Pick 2 or more exercises — they'll run back-to-back each round, with rest only between rounds.</p>
+      <div id="group-exercise-list" style="overflow-y:auto;flex:1;min-height:0;margin-top:6px;"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="group-cancel-btn" style="flex:1;">Cancel</button>
+        <button id="group-add-btn" style="flex:1;background:var(--strength);color:#14100a;">ADD TO WORKOUT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= SUBSTITUTE EXERCISE ============================= -->
+  <div id="substitute-modal" class="modal-overlay">
+    <div class="panel" style="max-height:82vh;display:flex;flex-direction:column;">
+      <h2>Substitute Exercise</h2>
+      <p class="hint" id="substitute-hint"></p>
+      <div id="substitute-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
+      <button id="substitute-cancel-btn" style="width:100%;margin-top:10px;">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ============================= WORKOUT NOTES (optional, post-workout) ============================= -->
+  <div id="workout-notes-modal" class="modal-overlay">
+    <div class="panel">
+      <h2>How did it feel?</h2>
+      <div id="mood-options">
+        <button data-mood="Great" class="mood-btn"><span>😄</span>Great</button>
+        <button data-mood="Good" class="mood-btn"><span>🙂</span>Good</button>
+        <button data-mood="Rough" class="mood-btn"><span>😕</span>Rough</button>
+        <button data-mood="Awful" class="mood-btn"><span>😣</span>Awful</button>
+      </div>
+      <label for="workout-note-text" style="font-size:13px;color:var(--muted);display:block;margin-top:10px;">Notes (optional)</label>
+      <textarea id="workout-note-text" rows="3" placeholder="Anything worth remembering for next time…"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button id="notes-skip-btn" style="flex:1;">Skip</button>
+        <button id="notes-save-btn" style="flex:1;background:var(--strength);color:#14100a;">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= RIR QUICK-PICK (non-blocking) ============================= -->
+  <div id="rir-prompt" class="hidden">
+    <span id="rir-prompt-label">Effort? (RIR)</span>
+    <div id="rir-prompt-buttons">
+      <button data-rir="0">0</button>
+      <button data-rir="1">1</button>
+      <button data-rir="2">2</button>
+      <button data-rir="3">3</button>
+      <button data-rir="4">4+</button>
+    </div>
+    <button id="rir-dismiss-btn">✕</button>
   </div>
 
   <div id="toast-wrap"></div>
@@ -1055,7 +1237,9 @@ const LS_KEYS = {
   spotifyClientId: 'gymtimer_spotify_client_id',
   spotifyVerifier: 'gymtimer_spotify_verifier',
   walks: 'gymtimer_walks',
-  walkUnits: 'gymtimer_walk_units'
+  walkUnits: 'gymtimer_walk_units',
+  prLog: 'gymtimer_pr_log',
+  resumeState: 'gymtimer_resume_state'
 };
 
 const DEFAULT_SETTINGS = {
@@ -1121,6 +1305,67 @@ if (!presets[activePresetName]) activePresetName = Object.keys(presets)[0];
 let history = loadJSON(LS_KEYS.history, []);
 let walks = loadJSON(LS_KEYS.walks, []);
 let walkUnits = localStorage.getItem(LS_KEYS.walkUnits) || 'mi';
+let prLog = loadJSON(LS_KEYS.prLog, []); // {date, exerciseName, weight, reps, category}
+
+/* ============================================================
+   WEIGHT SUGGESTION — simple, transparent, always overridable.
+   Looks at the most recent logged set for this exercise; if that set
+   had RIR 3+ (comfortable, room to spare) it nudges the weight up a
+   small fixed increment, otherwise it holds steady. No history = no
+   suggestion, never invented from nothing.
+============================================================ */
+function getLastWeightForExercise(exerciseKey) {
+  if (!exerciseKey) return null;
+  for (const entry of history) {
+    const segs = entry.segments || [];
+    for (let i = segs.length - 1; i >= 0; i--) {
+      const s = segs[i];
+      if (s.exerciseKey === exerciseKey && s.weight != null) {
+        return { weight: s.weight, reps: s.targetReps || null, rir: (s.rir != null ? s.rir : null), date: entry.date };
+      }
+    }
+  }
+  return null;
+}
+
+function suggestNextWeight(last) {
+  if (!last || last.weight == null) return null;
+  if (last.rir == null) return last.weight; // no effort data — stay put, don't guess
+  if (last.rir >= 3) return Math.round((last.weight + (last.weight >= 20 ? 5 : 2.5)) * 2) / 2; // had room — small nudge up
+  return last.weight; // 0-2 RIR: near max effort — hold steady
+}
+
+function weightHintText(exerciseKey) {
+  const last = getLastWeightForExercise(exerciseKey);
+  if (!last) return '';
+  const suggested = suggestNextWeight(last);
+  let text = 'Last: ' + last.weight + ' lb' + (last.reps ? ' × ' + last.reps : '');
+  if (suggested != null && suggested !== last.weight) text += ' · Suggested: ' + suggested + ' lb';
+  return text;
+}
+
+/* ============================================================
+   PERSONAL RECORDS — conservative: only from sets that were actually
+   completed (not skipped), and only once there's prior data to beat.
+============================================================ */
+function checkForPR(exerciseKey, weight, reps) {
+  if (!exerciseKey || weight == null || !reps) return null;
+  let bestWeightAtReps = 0, bestRepsAtWeight = 0, bestVolume = 0, hasPriorData = false;
+  history.forEach(entry => (entry.segments || []).forEach(s => {
+    if (s.exerciseKey === exerciseKey && s.status !== 'skipped' && s.weight != null && s.targetReps) {
+      hasPriorData = true;
+      if (s.targetReps >= reps) bestWeightAtReps = Math.max(bestWeightAtReps, s.weight);
+      if (s.weight >= weight) bestRepsAtWeight = Math.max(bestRepsAtWeight, s.targetReps);
+      bestVolume = Math.max(bestVolume, s.weight * s.targetReps);
+    }
+  }));
+  if (!hasPriorData) return null; // first time doing this exercise — not a "record" yet
+  const wins = [];
+  if (weight > bestWeightAtReps) wins.push('heaviest at ' + reps + ' reps');
+  if (reps > bestRepsAtWeight) wins.push('most reps at ' + weight + ' lb');
+  if (weight * reps > bestVolume) wins.push('best volume');
+  return wins.length ? wins : null;
+}
 
 /* ============================================================
    SECTION 4: DOM REFERENCES
@@ -1139,6 +1384,12 @@ const el = {
   timerCard: $('#timer-card'),
   overallFill: $('#overall-progress-fill'),
   startBtn: $('#start-btn'),
+  workoutPreview: $('#workout-preview'),
+  repeatLastBtn: $('#repeat-last-btn'),
+  resumeBanner: $('#resume-banner'),
+  resumeBannerTitle: $('#resume-banner-title'),
+  resumeBannerDetail: $('#resume-banner-detail'),
+  restAdjustRow: $('#rest-adjust-row'),
   controlsRow: $('#controls-row'),
   pauseBtn: $('#pause-btn'),
   completeBtn: $('#complete-btn'),
@@ -1149,6 +1400,7 @@ const el = {
   nextUpName: $('#next-up-name'),
   weightLogRow: $('#weight-log-row'),
   quickWeight: $('#quick-weight'),
+  weightHint: $('#weight-hint'),
   voiceStatusLabel: $('#voice-status-label'),
 
   overlay: $('#instruction-overlay'),
@@ -1158,8 +1410,12 @@ const el = {
   instrMistakes: $('#instruction-mistakes'),
   instrSetMeta: $('#instruction-setmeta'),
   instrWeight: $('#instruction-weight'),
+  instrWeightHint: $('#instr-weight-hint'),
   startSetBtn: $('#start-set-btn'),
   skipFutureCheckbox: $('#skip-future-instructions'),
+
+  rirPrompt: $('#rir-prompt'),
+  rirDismissBtn: $('#rir-dismiss-btn'),
 
   toastWrap: $('#toast-wrap')
 };
@@ -1276,27 +1532,42 @@ const engine = {
   midpointFired: false,
   totalPlannedSeconds: 0,
   elapsedPlannedSeconds: 0,
-  currentLog: [], // {exerciseKey, name, weight}
-  segmentLog: [], // {name, phase, setNumber, totalSets, status, plannedSeconds, actualSeconds}
+  currentLog: [], // {exerciseKey, name, weight} — kept for backward-compatible history summary
+  segmentLog: [], // {name, phase, setNumber, totalSets, status, plannedSeconds, actualSeconds, exerciseKey?, weight?, targetReps?, rir?}
+  lastEnteredWeight: {}, // exerciseKey -> weight typed this workout, carried forward set-to-set
+  workoutStartWallClock: 0,
+  durationOverride: null, // this-run-only rest length adjustment; never written to the saved preset
   awaitingInstruction: false,
   workoutName: ''
 };
 
 // Records how a segment actually ended so History can distinguish a full
 // completion from one cut short on purpose (Complete) versus abandoned (Skip).
+// Returns the log entry so callers can attach weight/RIR to it.
 function recordSegmentOutcome(status) {
   const seg = engine.segments[engine.index];
-  if (!seg || seg.type === 'instruction') return;
+  if (!seg || seg.type === 'instruction') return null;
   const elapsedMs = (performance.now() - engine.segStartTs) - engine.pausedAccumMs;
-  engine.segmentLog.push({
+  const entry = {
     name: seg.name,
     phase: seg.phase,
     setNumber: seg.setNumber,
     totalSets: seg.totalSets,
     status,
-    plannedSeconds: estimateSegmentSeconds(seg),
+    plannedSeconds: (seg.type === 'time' && engine.durationOverride != null) ? engine.durationOverride : estimateSegmentSeconds(seg),
     actualSeconds: Math.max(0, Math.round(elapsedMs / 1000))
-  });
+  };
+  if (seg.exerciseKey) entry.exerciseKey = seg.exerciseKey;
+  if (seg.phase === 'strength' && seg.type === 'time') {
+    const w = parseFloat(el.quickWeight.value);
+    if (!isNaN(w)) {
+      entry.weight = w;
+      engine.lastEnteredWeight[seg.exerciseKey] = w;
+    }
+    if (seg.targetReps) entry.targetReps = seg.targetReps;
+  }
+  engine.segmentLog.push(entry);
+  return entry;
 }
 
 function estimateSegmentSeconds(seg) {
@@ -1318,11 +1589,15 @@ function startWorkout() {
   engine.isPaused = false;
   engine.currentLog = [];
   engine.segmentLog = [];
+  engine.lastEnteredWeight = {};
+  engine.workoutStartWallClock = Date.now();
   engine.workoutName = activePresetName;
   engine.totalPlannedSeconds = segs.reduce((sum, s) => sum + estimateSegmentSeconds(s), 0) || 1;
   engine.elapsedPlannedSeconds = 0;
 
   el.startBtn.classList.add('hidden');
+  el.repeatLastBtn.classList.add('hidden');
+  el.resumeBanner.classList.add('hidden');
   el.controlsRow.classList.remove('hidden');
   requestWakeLock();
   if (settings.voiceCommands) startVoiceRecognition();
@@ -1343,21 +1618,30 @@ function stopWorkout(save) {
   el.nextUp.classList.add('hidden');
   el.weightLogRow.style.display = 'none';
   el.overlay.classList.remove('active');
+  el.restAdjustRow.classList.remove('active');
+  el.skipBtn.textContent = '⏭ SKIP';
+  hideRirPrompt();
+  clearResumeState();
 
   if (save && (engine.currentLog.length > 0 || engine.segmentLog.length > 0)) {
+    const durationSeconds = engine.workoutStartWallClock
+      ? Math.max(0, Math.round((Date.now() - engine.workoutStartWallClock) / 1000))
+      : null;
     history.unshift({
       date: new Date().toISOString(),
       workoutName: engine.workoutName,
+      durationSeconds,
       exercises: engine.currentLog.slice(),
       segments: engine.segmentLog.slice()
     });
     history = history.slice(0, 50);
     saveJSON(LS_KEYS.history, history);
     renderHistory();
+    showWorkoutNotesModal();
   }
 
   el.exerciseName.textContent = 'Ready to start';
-  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  updateIdleScreen();
   el.setIndicator.textContent = '';
   el.bigTimer.textContent = '00:00';
   setPhaseUI('idle');
@@ -1390,9 +1674,75 @@ function skipSegment() {
 
 function completeSegment() {
   if (!engine.isRunning || engine.awaitingInstruction) return;
-  recordSegmentOutcome('completed-early');
+  const seg = engine.segments[engine.index];
+  const entry = recordSegmentOutcome('completed-early');
+  handleSetCompletion(seg, entry, 'completed-early');
   advanceToNextSegment();
 }
+
+// After a strength set finishes (naturally or via Complete), offer a fast,
+// skippable RIR pick and check whether it's a new personal record. Never
+// blocks advancement — both happen "on top of" the workout continuing.
+function handleSetCompletion(seg, entry, status) {
+  if (!entry || !seg) return;
+  if (seg.phase !== 'strength' || seg.type !== 'time') return;
+  if (status !== 'completed' && status !== 'completed-early') return;
+  showRirPrompt(entry);
+  if (entry.weight != null && entry.targetReps) {
+    const wins = checkForPR(seg.exerciseKey, entry.weight, entry.targetReps);
+    if (wins) {
+      showToast('🏆 NEW BEST — ' + seg.name + ': ' + entry.weight + ' lb × ' + entry.targetReps + ' (' + wins[0] + ')', 5500);
+      prLog.unshift({ date: new Date().toISOString(), exerciseName: seg.name, weight: entry.weight, reps: entry.targetReps, category: wins[0] });
+      prLog = prLog.slice(0, 20);
+      saveJSON(LS_KEYS.prLog, prLog);
+    }
+  }
+}
+
+let rirDismissTimeout = null;
+function showRirPrompt(entry) {
+  engine.pendingRirEntry = entry;
+  el.rirPrompt.classList.remove('hidden');
+  clearTimeout(rirDismissTimeout);
+  rirDismissTimeout = setTimeout(hideRirPrompt, 8000);
+}
+function hideRirPrompt() {
+  el.rirPrompt.classList.add('hidden');
+  engine.pendingRirEntry = null;
+  clearTimeout(rirDismissTimeout);
+}
+$$('#rir-prompt-buttons button').forEach(btn => {
+  btn.addEventListener('click', debounceClick(() => {
+    if (engine.pendingRirEntry) engine.pendingRirEntry.rir = parseInt(btn.dataset.rir, 10);
+    hideRirPrompt();
+  }));
+});
+el.rirDismissBtn.addEventListener('click', debounceClick(hideRirPrompt));
+
+/* ---- Dynamic rest adjustment: this-run-only unless explicitly saved. ---- */
+function currentEffectiveRestDuration() {
+  const seg = engine.segments[engine.index];
+  if (!seg) return 0;
+  return engine.durationOverride != null ? engine.durationOverride : seg.duration;
+}
+function adjustRest(deltaSeconds) {
+  if (!engine.isRunning) return;
+  const seg = engine.segments[engine.index];
+  if (!seg || seg.phase !== 'rest') return;
+  const elapsedSec = ((performance.now() - engine.segStartTs) - engine.pausedAccumMs) / 1000;
+  const newDuration = Math.max(Math.ceil(elapsedSec), currentEffectiveRestDuration() + deltaSeconds);
+  engine.durationOverride = newDuration;
+  showToast((deltaSeconds > 0 ? '+15s' : '-15s') + ' rest (this workout only)', 1500);
+}
+$('#rest-minus-btn').addEventListener('click', debounceClick(() => adjustRest(-15)));
+$('#rest-plus-btn').addEventListener('click', debounceClick(() => adjustRest(15)));
+$('#rest-save-btn').addEventListener('click', debounceClick(() => {
+  const seg = engine.segments[engine.index];
+  if (!seg || seg.phase !== 'rest' || engine.durationOverride == null) { showToast('Adjust the rest first, then save.'); return; }
+  seg.duration = engine.durationOverride; // this IS the live preset segment -- explicit opt-in only
+  saveJSON(LS_KEYS.presets, presets);
+  showToast('Saved ' + formatDuration(seg.duration) + ' as this rest’s default in the preset');
+}));
 
 function advanceToNextSegment() {
   window.speechSynthesis && window.speechSynthesis.cancel();
@@ -1410,10 +1760,21 @@ function advanceToNextSegment() {
   engine.midpointFired = false;
   engine.pausedAccumMs = 0;
   engine.segStartTs = performance.now();
+  engine.durationOverride = null;
 
   updatePhasePillAndCard(seg);
   updateNextUpLabel();
   updateOverallProgress();
+  saveResumeState();
+
+  // Rest can be adjusted on the fly (+/-15s) without touching the saved preset.
+  if (seg.phase === 'rest' && seg.type === 'time') {
+    el.restAdjustRow.classList.add('active');
+    el.skipBtn.textContent = '✓ READY';
+  } else {
+    el.restAdjustRow.classList.remove('active');
+    el.skipBtn.textContent = '⏭ SKIP';
+  }
 
   if (seg.type === 'instruction') {
     if (!settings.instructionsEnabled || settings.skipInstructionFuture) {
@@ -1430,9 +1791,22 @@ function advanceToNextSegment() {
   engine.awaitingInstruction = false;
   el.overlay.classList.remove('active');
 
-  // Weight logging row shown during strength work segments.
+  // Weight logging row shown during strength work segments, pre-filled with
+  // whatever was typed for an earlier set of this exercise tonight, falling
+  // back to a suggestion from last time this exercise was done.
   if (seg.phase === 'strength' && seg.type === 'time') {
     el.weightLogRow.style.display = 'flex';
+    const carried = engine.lastEnteredWeight[seg.exerciseKey];
+    if (carried != null) {
+      el.quickWeight.value = carried;
+    } else {
+      const last = getLastWeightForExercise(seg.exerciseKey);
+      const suggested = last ? suggestNextWeight(last) : null;
+      el.quickWeight.value = suggested != null ? suggested : (seg.defaultWeight != null ? seg.defaultWeight : '');
+    }
+    const hint = weightHintText(seg.exerciseKey);
+    el.weightHint.textContent = hint;
+    el.weightHint.classList.toggle('hidden', !hint);
   } else {
     el.weightLogRow.style.display = 'none';
   }
@@ -1467,7 +1841,8 @@ function updatePhasePillAndCard(seg) {
   el.segmentSub.textContent = sub;
 
   if (seg.setNumber) {
-    el.setIndicator.textContent = 'Set ' + seg.setNumber + ' of ' + seg.totalSets +
+    const unit = seg.groupId ? 'Round' : 'Set';
+    el.setIndicator.textContent = (seg.groupLabel ? seg.groupLabel + ' · ' : '') + unit + ' ' + seg.setNumber + ' of ' + seg.totalSets +
       (seg.targetReps ? ' · target ' + seg.targetReps + ' reps' + (EXERCISE_MAP[seg.exerciseKey] && EXERCISE_MAP[seg.exerciseKey].repsNote ? ' ' + EXERCISE_MAP[seg.exerciseKey].repsNote : '') : '');
   } else {
     el.setIndicator.textContent = '';
@@ -1487,7 +1862,10 @@ function updateNextUpLabel() {
   const next = engine.segments[engine.index + 1];
   if (!next) { el.nextUp.classList.add('hidden'); return; }
   el.nextUp.classList.remove('hidden');
-  el.nextUpName.textContent = next.type === 'instruction' ? next.name + ' (form check)' : next.name;
+  let label = next.type === 'instruction' ? next.name + ' (form check)' : next.name;
+  if (next.type === 'time') label += ' — ' + formatDuration(next.duration);
+  else if (next.type === 'reps') label += ' — ' + next.reps + ' reps';
+  el.nextUpName.textContent = label;
 }
 
 function updateOverallProgress() {
@@ -1526,10 +1904,11 @@ function tick() {
   const elapsedSec = elapsedMs / 1000;
 
   if (seg.type === 'time') {
-    const remaining = seg.duration - elapsedSec;
-    renderTimeRemaining(remaining, seg.duration);
+    const effectiveDuration = engine.durationOverride != null ? engine.durationOverride : seg.duration;
+    const remaining = effectiveDuration - elapsedSec;
+    renderTimeRemaining(remaining, effectiveDuration);
 
-    if (seg.midpointMsg && !engine.midpointFired && elapsedSec >= seg.duration / 2) {
+    if (seg.midpointMsg && !engine.midpointFired && elapsedSec >= effectiveDuration / 2) {
       engine.midpointFired = true;
       speak(seg.midpointMsg);
     }
@@ -1546,7 +1925,8 @@ function tick() {
     if (remaining <= 0) {
       if (seg.endMsg) speak(seg.endMsg);
       vibrate(150);
-      recordSegmentOutcome('completed');
+      const entry = recordSegmentOutcome('completed');
+      handleSetCompletion(seg, entry, 'completed');
       advanceToNextSegment();
     }
   } else if (seg.type === 'reps') {
@@ -1592,8 +1972,13 @@ function showInstructionOverlay(seg) {
   el.instrText.textContent = seg.text;
   el.instrMistakes.textContent = 'Common mistakes: ' + seg.mistakes;
   const repsLabel = seg.reps ? (seg.reps + ' reps' + (seg.repsNote ? ' ' + seg.repsNote : '')) : '30 seconds';
-  el.instrSetMeta.textContent = '2 sets × ' + repsLabel;
-  el.instrWeight.value = '';
+  el.instrSetMeta.textContent = (seg.totalSets || 2) + ' sets × ' + repsLabel;
+  const last = seg.exerciseKey ? getLastWeightForExercise(seg.exerciseKey) : null;
+  const suggested = last ? suggestNextWeight(last) : null;
+  el.instrWeight.value = suggested != null ? suggested : (seg.defaultWeight != null ? seg.defaultWeight : '');
+  const hint = seg.exerciseKey ? weightHintText(seg.exerciseKey) : '';
+  el.instrWeightHint.textContent = hint;
+  el.instrWeightHint.classList.toggle('hidden', !hint);
   el.skipFutureCheckbox.checked = settings.skipInstructionFuture;
   el.overlay.classList.add('active');
 }
@@ -1603,6 +1988,7 @@ function closeInstructionAndStartSet() {
   const weight = el.instrWeight.value ? parseFloat(el.instrWeight.value) : null;
   if (weight !== null && !isNaN(weight)) {
     logExerciseWeight(seg.exerciseKey, seg.name, weight);
+    engine.lastEnteredWeight[seg.exerciseKey] = weight; // carries into set 1's quick-weight field
   }
   settings.skipInstructionFuture = el.skipFutureCheckbox.checked;
   saveSettings();
@@ -1742,22 +2128,38 @@ function renderBuilder() {
     list.innerHTML = '<p class="hint">No segments yet. Tap "+ Add Segment" below.</p>';
     return;
   }
+  let lastGroupId = null;
   segs.forEach((seg, idx) => {
+    // Supersets/circuits: show a small header once per group so the
+    // structure reads as one thing rather than raw loose segments.
+    if (seg.groupId && seg.groupId !== lastGroupId) {
+      const header = document.createElement('div');
+      header.className = 'group-header';
+      header.textContent = (seg.groupLabel || 'Group') + ' × ' + (seg.groupTotalRounds || '?') + ' rounds';
+      list.appendChild(header);
+    }
+    lastGroupId = seg.groupId || null;
+
     const item = document.createElement('div');
-    item.className = 'segment-item';
+    item.className = 'segment-item' + (seg.groupId ? ' in-group' : '');
+    item.draggable = true;
+    item.dataset.idx = idx;
     const metaBits = [];
     if (seg.type === 'time') metaBits.push(formatDuration(seg.duration || 0));
     if (seg.type === 'reps') metaBits.push((seg.reps || 0) + ' reps');
     if (seg.type === 'instruction') metaBits.push('form check');
-    if (seg.setNumber) metaBits.push('Set ' + seg.setNumber + '/' + seg.totalSets);
+    if (seg.setNumber) metaBits.push((seg.groupId ? 'Round ' : 'Set ') + seg.setNumber + '/' + seg.totalSets);
+    const canSubstitute = seg.type === 'instruction' && seg.exerciseKey && EXERCISE_MAP[seg.exerciseKey];
     item.innerHTML = `
       <div class="seg-top">
+        <div class="seg-drag-handle" title="Drag to reorder">⠿</div>
         <div>
           <span class="phase-tag ${seg.phase}">${seg.phase}</span>
           <span class="seg-title">${seg.name}</span>
           <div class="seg-meta">${metaBits.join(' · ')}</div>
         </div>
         <div class="seg-actions">
+          ${canSubstitute ? `<button data-act="substitute" data-idx="${idx}" title="Substitute exercise">🔄</button>` : ''}
           <button data-act="up" data-idx="${idx}">↑</button>
           <button data-act="down" data-idx="${idx}">↓</button>
           <button data-act="edit" data-idx="${idx}">✎</button>
@@ -1776,9 +2178,41 @@ function renderBuilder() {
       if (act === 'down' && idx < segs.length - 1) { [segs[idx + 1], segs[idx]] = [segs[idx], segs[idx + 1]]; }
       if (act === 'del') { if (confirm('Delete "' + segs[idx].name + '"?')) segs.splice(idx, 1); }
       if (act === 'edit') { openSegmentEditor(idx); return; }
+      if (act === 'substitute') { openSubstituteModal(idx); return; }
       saveJSON(LS_KEYS.presets, presets);
       renderBuilder();
     }));
+  });
+
+  wireSegmentDragAndDrop(list);
+}
+
+/* ---- Drag-and-drop reordering (desktop/mouse). Up/Down buttons remain the
+   primary mechanism on touch, where native HTML5 drag is unreliable.
+   Reordering only ever moves array positions -- segment objects (and
+   therefore instruction/SVG/set/rest/exerciseKey metadata) are untouched. ---- */
+let dragSrcIdx = null;
+function wireSegmentDragAndDrop(list) {
+  list.querySelectorAll('.segment-item').forEach(item => {
+    item.addEventListener('dragstart', e => {
+      dragSrcIdx = parseInt(item.dataset.idx, 10);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => { item.classList.remove('dragging'); dragSrcIdx = null; });
+    item.addEventListener('dragover', e => { e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const targetIdx = parseInt(item.dataset.idx, 10);
+      if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+      const segs = presets[activePresetName];
+      const [moved] = segs.splice(dragSrcIdx, 1);
+      segs.splice(targetIdx, 0, moved);
+      saveJSON(LS_KEYS.presets, presets);
+      renderBuilder();
+    });
   });
 }
 
@@ -1902,7 +2336,7 @@ function renderLibraryList() {
   container.querySelectorAll('[data-add]').forEach(btn => {
     btn.addEventListener('click', debounceClick(() => {
       if (btn.dataset.kind === 'warmup') addWarmupFromLibrary(btn.dataset.add);
-      else addExerciseFromLibrary(btn.dataset.add);
+      else openAddExerciseModal(btn.dataset.add);
     }));
   });
 }
@@ -1922,18 +2356,195 @@ function addWarmupFromLibrary(warmupKey) {
   showToast('Added ' + w.name);
 }
 
-function addExerciseFromLibrary(exerciseKey) {
+/* ---- Add Exercise: quick sets/reps/work/rest/weight config on top of the
+   existing library-add flow. Defaults (1 set, no rest) match tapping Add
+   with no changes, so the fast path from before still works unchanged. ---- */
+let pendingAddExercise = null;
+function openAddExerciseModal(exerciseKey) {
   const ex = EXERCISE_MAP[exerciseKey];
   if (!ex) return;
-  const segs = presets[activePresetName];
-  // Just one set, no auto-attached rest — rest is something you add
-  // deliberately (via + Add Segment) wherever you actually want it,
-  // since some routines chain several exercises before resting.
-  segs.push(...buildExerciseSegments(ex, 1, false));
+  pendingAddExercise = ex;
+  $('#ae-thumb').innerHTML = ex.svg || '';
+  $('#ae-name').textContent = ex.name;
+  $('#ae-sets').value = 1;
+  $('#ae-reps').value = ex.reps || '';
+  $('#ae-work').value = ex.workSeconds;
+  $('#ae-rest').value = 0;
+  $('#ae-weight').value = '';
+  $('#library-modal').classList.remove('active');
+  $('#add-exercise-modal').classList.add('active');
+}
+$('#ae-cancel-btn').addEventListener('click', debounceClick(() => {
+  $('#add-exercise-modal').classList.remove('active');
+  pendingAddExercise = null;
+}));
+$('#ae-add-btn').addEventListener('click', debounceClick(() => {
+  if (!pendingAddExercise) return;
+  const ex = pendingAddExercise;
+  const sets = Math.max(1, parseInt($('#ae-sets').value, 10) || 1);
+  const reps = parseInt($('#ae-reps').value, 10) || ex.reps;
+  const workSeconds = Math.max(5, parseInt($('#ae-work').value, 10) || ex.workSeconds);
+  const rest = Math.max(0, parseInt($('#ae-rest').value, 10) || 0);
+  const weight = $('#ae-weight').value ? parseFloat($('#ae-weight').value) : null;
+  const customEx = Object.assign({}, ex, { reps, workSeconds, rest: rest || ex.rest });
+  const newSegs = buildExerciseSegments(customEx, sets, rest > 0);
+  if (weight != null && !isNaN(weight)) {
+    newSegs.forEach(s => { if (s.phase === 'strength' && (s.type === 'time' || s.type === 'instruction')) s.defaultWeight = weight; });
+  }
+  presets[activePresetName].push(...newSegs);
   saveJSON(LS_KEYS.presets, presets);
   renderBuilder();
-  showToast('Added ' + ex.name + ' — tap again for another set, or + Add Segment for a Rest');
+  $('#add-exercise-modal').classList.remove('active');
+  showToast('Added ' + ex.name + ' (' + sets + ' set' + (sets === 1 ? '' : 's') + ')');
+  pendingAddExercise = null;
+}));
+
+/* ---- Superset / Circuit: a higher-level Builder concept that still just
+   generates the same flat segment list the timer engine already knows how
+   to run. Exercises share one groupId/groupLabel/groupTotalRounds so the
+   Builder can visually cluster them; the engine itself needs no changes. ---- */
+function buildGroupSegments(exercises, rounds, restBetweenRounds, groupLabel) {
+  const groupId = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const segs = [];
+  exercises.forEach(ex => {
+    segs.push({ phase: 'strength', type: 'instruction', name: ex.name, exerciseKey: ex.key,
+      svg: ex.svg, text: ex.text, mistakes: ex.mistakes, reps: ex.reps, repsNote: ex.repsNote || '' });
+  });
+  for (let round = 1; round <= rounds; round++) {
+    exercises.forEach(ex => {
+      segs.push({
+        phase: 'strength', type: 'time', name: ex.name, exerciseKey: ex.key,
+        duration: ex.workSeconds, setNumber: round, totalSets: rounds, targetReps: ex.reps,
+        announceStart: `Begin ${ex.name}`,
+        warnings: [{ at: 10, msg: '10 seconds remaining' }],
+        endMsg: 'Move to the next exercise',
+        groupId, groupLabel, groupTotalRounds: rounds
+      });
+    });
+    if (restBetweenRounds > 0) {
+      segs.push({
+        phase: 'rest', type: 'time', name: 'Rest', duration: restBetweenRounds,
+        setNumber: round, totalSets: rounds,
+        warnings: [{ at: 30, msg: '30 seconds remaining' }, { at: 10, msg: '10 seconds remaining' }],
+        endMsg: round === rounds ? 'Rest over' : 'Rest over, next round',
+        groupId, groupLabel, groupTotalRounds: rounds
+      });
+    }
+  }
+  return segs;
 }
+
+function renderGroupExerciseList() {
+  const container = $('#group-exercise-list');
+  container.innerHTML = EXERCISES.concat(EXTRA_EXERCISES).map(ex => `
+    <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #21262e;">
+      <input type="checkbox" value="${ex.key}" style="width:20px;height:20px;flex-shrink:0;">
+      <div style="width:32px;height:32px;flex-shrink:0;">${ex.svg}</div>
+      <span style="font-size:14px;">${ex.name}</span>
+    </label>
+  `).join('');
+}
+$('#add-group-btn').addEventListener('click', debounceClick(() => {
+  renderGroupExerciseList();
+  $('#group-label').value = '';
+  $('#group-rounds').value = 3;
+  $('#group-rest').value = 60;
+  $('#group-type').value = 'Superset';
+  $('#group-modal').classList.add('active');
+}));
+$('#group-cancel-btn').addEventListener('click', debounceClick(() => $('#group-modal').classList.remove('active')));
+$('#group-add-btn').addEventListener('click', debounceClick(() => {
+  const keys = Array.from($('#group-exercise-list').querySelectorAll('input:checked')).map(cb => cb.value);
+  if (keys.length < 2) { showToast('Pick at least 2 exercises.'); return; }
+  const exercises = keys.map(k => EXERCISE_MAP[k]).filter(Boolean);
+  const rounds = Math.max(1, parseInt($('#group-rounds').value, 10) || 1);
+  const rest = Math.max(0, parseInt($('#group-rest').value, 10) || 0);
+  const type = $('#group-type').value;
+  const label = $('#group-label').value.trim() || type;
+  const segs = buildGroupSegments(exercises, rounds, rest, label);
+  presets[activePresetName].push(...segs);
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+  $('#group-modal').classList.remove('active');
+  showToast('Added ' + label + ' (' + exercises.length + ' exercises × ' + rounds + ' rounds)');
+}));
+
+/* ---- Exercise substitution: swaps identity (name/svg/text/mistakes/reps)
+   across an instruction segment and its sibling work segments, while
+   leaving the sets/duration/rest the user already configured untouched --
+   only the "which exercise" part changes, sets/reps stay editable after. ---- */
+let substituteTargetIdx = null;
+function findSiblingWorkSegments(segs, instructionIdx) {
+  const key = segs[instructionIdx].exerciseKey;
+  const result = [];
+  for (let i = instructionIdx + 1; i < segs.length; i++) {
+    if (segs[i].type === 'instruction') break;
+    if (segs[i].exerciseKey === key) result.push(i);
+    else if (segs[i].phase === 'strength') break; // a different exercise's block started
+  }
+  return result;
+}
+function openSubstituteModal(idx) {
+  const segs = presets[activePresetName];
+  const seg = segs[idx];
+  const original = EXERCISE_MAP[seg.exerciseKey];
+  if (!original) return;
+  substituteTargetIdx = idx;
+  $('#substitute-hint').textContent = 'Replacing ' + original.name + ' — pick a ' + original.category.toLowerCase() + ' alternative:';
+  const candidates = EXERCISE_LIBRARY.filter(ex => ex.category === original.category && ex.key !== original.key);
+  const list = $('#substitute-list');
+  if (!candidates.length) { list.innerHTML = '<p class="hint">No other ' + original.category.toLowerCase() + ' exercises in the library yet.</p>'; }
+  else {
+    list.innerHTML = candidates.map(ex => `
+      <div class="segment-item">
+        <div class="seg-top">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <div style="width:40px;height:40px;flex-shrink:0;">${ex.svg}</div>
+            <div style="min-width:0;"><div class="seg-title">${ex.name}</div></div>
+          </div>
+          <button data-sub="${ex.key}" class="small-btn">Use this</button>
+        </div>
+      </div>`).join('');
+    list.querySelectorAll('[data-sub]').forEach(btn => {
+      btn.addEventListener('click', debounceClick(() => applySubstitute(btn.dataset.sub)));
+    });
+  }
+  $('#substitute-modal').classList.add('active');
+}
+function applySubstitute(newKey) {
+  if (substituteTargetIdx == null) return;
+  const newEx = EXERCISE_MAP[newKey];
+  if (!newEx) return;
+  const segs = presets[activePresetName];
+  const instructionIdx = substituteTargetIdx;
+  const siblingIdxs = findSiblingWorkSegments(segs, instructionIdx);
+  const instr = segs[instructionIdx];
+  instr.name = newEx.name;
+  instr.exerciseKey = newEx.key;
+  instr.svg = newEx.svg;
+  instr.text = newEx.text;
+  instr.mistakes = newEx.mistakes;
+  instr.reps = newEx.reps;
+  instr.repsNote = newEx.repsNote || '';
+  siblingIdxs.forEach(i => {
+    segs[i].exerciseKey = newEx.key; // keep rest segments linked to the right exercise for history/stats
+    if (segs[i].phase === 'strength') {
+      segs[i].name = newEx.name;
+      segs[i].targetReps = newEx.reps;
+    }
+    // "Rest" segments keep their name as "Rest" -- only work segments adopt the new exercise's name.
+    // duration/setNumber/totalSets/rest intentionally left as already configured.
+  });
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+  $('#substitute-modal').classList.remove('active');
+  showToast('Substituted ' + newEx.name);
+  substituteTargetIdx = null;
+}
+$('#substitute-cancel-btn').addEventListener('click', debounceClick(() => {
+  $('#substitute-modal').classList.remove('active');
+  substituteTargetIdx = null;
+}));
 
 $('#add-from-library-btn').addEventListener('click', debounceClick(() => {
   renderLibraryList();
@@ -1946,7 +2557,7 @@ $('#library-close-btn').addEventListener('click', debounceClick(() => {
 $('#preset-select').addEventListener('change', e => {
   activePresetName = e.target.value;
   localStorage.setItem(LS_KEYS.activePreset, activePresetName);
-  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  updateIdleScreen();
   renderBuilder();
 });
 
@@ -2023,45 +2634,164 @@ $('#import-file').addEventListener('change', (e) => {
 /* ============================================================
    SECTION 15: HISTORY
 ============================================================ */
+// Per-set weight/RIR breakdown, grouped by exercise — richer replacement
+// for the old flat "name — weight" list, gracefully empty for older
+// history entries that predate per-set weight/RIR capture.
+function buildSetBreakdown(entry) {
+  const byExercise = {};
+  const order = [];
+  (entry.segments || []).forEach(s => {
+    if (s.phase !== 'strength' || !s.exerciseKey) return;
+    if (!byExercise[s.exerciseKey]) { byExercise[s.exerciseKey] = []; order.push(s.exerciseKey); }
+    byExercise[s.exerciseKey].push(s);
+  });
+  if (!order.length) return '';
+  return '<div class="set-breakdown">' + order.map(key => {
+    const sets = byExercise[key];
+    const rows = sets.map(s => {
+      const bits = [];
+      if (s.weight != null) bits.push(s.weight + ' lb');
+      if (s.targetReps) bits.push('× ' + s.targetReps);
+      if (s.rir != null) bits.push('RIR ' + s.rir);
+      if (s.status === 'skipped') bits.push('(skipped)');
+      else if (s.status === 'completed-early') bits.push('(early)');
+      return `<div class="set-row">Set ${s.setNumber}${s.totalSets ? '/' + s.totalSets : ''} — ${bits.join(' ') || 'no data'}</div>`;
+    }).join('');
+    return `<div class="set-breakdown-exercise"><b>${sets[0].name}</b>${rows}</div>`;
+  }).join('') + '</div>';
+}
+
 function renderHistory() {
   const list = $('#history-list');
-  if (!history.length) { list.innerHTML = '<p class="hint">No workouts logged yet.</p>'; return; }
-  list.innerHTML = '';
-  history.forEach(entry => {
-    const d = new Date(entry.date);
-    const div = document.createElement('div');
-    div.className = 'history-entry';
-    const exList = entry.exercises && entry.exercises.length
-      ? '<ul>' + entry.exercises.map(x => `<li>${x.name}${x.weight ? ' — ' + x.weight + ' lbs' : ''}</li>`).join('') + '</ul>'
-      : '<div class="hint">No weights logged.</div>';
+  if (!history.length) { list.innerHTML = '<p class="hint">No workouts logged yet.</p>'; }
+  else {
+    list.innerHTML = '';
+    history.forEach(entry => {
+      const d = new Date(entry.date);
+      const div = document.createElement('div');
+      div.className = 'history-entry';
+      const breakdown = buildSetBreakdown(entry);
+      const exList = breakdown || (entry.exercises && entry.exercises.length
+        ? '<ul>' + entry.exercises.map(x => `<li>${x.name}${x.weight ? ' — ' + x.weight + ' lbs' : ''}</li>`).join('') + '</ul>'
+        : '<div class="hint">No weights logged.</div>');
 
-    // Segment-level completion tracking: silence means "completed as planned",
-    // only deviations (early finishes, skips) get called out explicitly.
-    const segments = entry.segments || [];
-    const completedCount = segments.filter(s => s.status === 'completed').length;
-    const earlyCount = segments.filter(s => s.status === 'completed-early').length;
-    const skippedCount = segments.filter(s => s.status === 'skipped').length;
-    const segSummary = segments.length
-      ? `<div class="h-meta">${completedCount} completed as planned${earlyCount ? ', ' + earlyCount + ' completed early' : ''}${skippedCount ? ', ' + skippedCount + ' skipped' : ''}</div>`
-      : '';
-    const deviations = segments.filter(s => s.status !== 'completed');
-    const devList = deviations.length
-      ? '<ul class="deviations">' + deviations.map(s => {
-          const setLabel = s.setNumber ? ` Set ${s.setNumber}/${s.totalSets}` : '';
-          const label = s.status === 'skipped' ? 'skipped' : `completed early (${s.actualSeconds}s of ${s.plannedSeconds}s)`;
-          return `<li>${s.name}${setLabel} — ${label}</li>`;
-        }).join('') + '</ul>'
-      : '';
+      // Segment-level completion tracking: silence means "completed as planned",
+      // only deviations (early finishes, skips) get called out explicitly.
+      const segments = entry.segments || [];
+      const completedCount = segments.filter(s => s.status === 'completed').length;
+      const earlyCount = segments.filter(s => s.status === 'completed-early').length;
+      const skippedCount = segments.filter(s => s.status === 'skipped').length;
+      const durationLabel = entry.durationSeconds ? formatDuration(entry.durationSeconds) : null;
+      const segSummary = segments.length
+        ? `<div class="h-meta">${durationLabel ? durationLabel + ' · ' : ''}${completedCount} completed as planned${earlyCount ? ', ' + earlyCount + ' completed early' : ''}${skippedCount ? ', ' + skippedCount + ' skipped' : ''}</div>`
+        : '';
+      const deviations = segments.filter(s => s.status !== 'completed');
+      const devList = deviations.length
+        ? '<ul class="deviations">' + deviations.map(s => {
+            const setLabel = s.setNumber ? ` Set ${s.setNumber}/${s.totalSets}` : '';
+            const label = s.status === 'skipped' ? 'skipped' : `completed early (${s.actualSeconds}s of ${s.plannedSeconds}s)`;
+            return `<li>${s.name}${setLabel} — ${label}</li>`;
+          }).join('') + '</ul>'
+        : '';
 
-    div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
-      <div class="h-meta">${entry.workoutName}</div>${segSummary}${devList}${exList}`;
-    list.appendChild(div);
-  });
+      const moodEmoji = { Great: '😄', Good: '🙂', Rough: '😕', Awful: '😣' };
+      const moodLine = entry.mood ? `<div class="h-meta">${moodEmoji[entry.mood] || ''} ${entry.mood}</div>` : '';
+      const noteLine = entry.note ? `<div class="hint" style="margin-top:4px;font-style:italic;">"${entry.note}"</div>` : '';
+
+      div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="h-meta">${entry.workoutName}</div>${moodLine}${segSummary}${devList}${exList}${noteLine}`;
+      list.appendChild(div);
+    });
+  }
+  renderHistoryStats();
+  renderExerciseSelect();
 }
+
+function computeHistoryStats() {
+  const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  const workoutsThisWeek = history.filter(h => new Date(h.date).getTime() >= weekAgo).length;
+  const totalWorkoutSeconds = history.reduce((sum, h) => sum + (h.durationSeconds || 0), 0);
+  const totalWalkSeconds = walks.reduce((sum, w) => sum + (w.elapsedSeconds || 0), 0);
+  const totalWalkMeters = walks.reduce((sum, w) => sum + (w.distanceMeters || 0), 0);
+  let strengthSets = 0, rirSum = 0, rirCount = 0, totalVolume = 0;
+  history.forEach(h => (h.segments || []).forEach(s => {
+    if (s.phase === 'strength' && s.status !== 'skipped') {
+      strengthSets++;
+      if (s.rir != null) { rirSum += s.rir; rirCount++; }
+      if (s.weight != null && s.targetReps) totalVolume += s.weight * s.targetReps;
+    }
+  }));
+  return {
+    workoutsThisWeek, totalWorkoutSeconds, totalWalkSeconds,
+    totalWalkMiles: totalWalkMeters / 1609.344,
+    strengthSets, totalVolume,
+    avgRir: rirCount ? (rirSum / rirCount) : null
+  };
+}
+
+function renderHistoryStats() {
+  const grid = $('#history-stats-grid');
+  const s = computeHistoryStats();
+  const tiles = [
+    { value: s.workoutsThisWeek, label: 'Workouts this week' },
+    { value: s.totalWorkoutSeconds ? formatDuration(s.totalWorkoutSeconds) : '—', label: 'Total workout time' },
+    { value: s.totalWalkSeconds ? s.totalWalkMiles.toFixed(1) + ' mi' : '—', label: 'Total walking distance' },
+    { value: s.strengthSets || '—', label: 'Strength sets logged' },
+    { value: s.totalVolume ? Math.round(s.totalVolume).toLocaleString() + ' lb' : '—', label: 'Total volume' },
+    { value: s.avgRir != null ? s.avgRir.toFixed(1) : '—', label: 'Average RIR' }
+  ];
+  let html = tiles.map(t => `<div class="stat-tile"><div class="stat-value">${t.value}</div><div class="stat-label">${t.label}</div></div>`).join('');
+  if (prLog.length) {
+    html += `<div class="stat-tile pr-tile"><div class="stat-label">🏆 Recent personal records</div>
+      <ul>${prLog.slice(0, 3).map(p => `<li>${p.exerciseName} — ${p.weight} lb × ${p.reps} (${p.category})</li>`).join('')}</ul></div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function renderExerciseSelect() {
+  const sel = $('#history-exercise-select');
+  const seen = {};
+  history.forEach(h => (h.segments || []).forEach(s => {
+    if (s.exerciseKey && s.phase === 'strength') seen[s.exerciseKey] = s.name;
+  }));
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Choose an exercise…</option>' +
+    Object.keys(seen).map(k => `<option value="${k}">${seen[k]}</option>`).join('');
+  if (seen[currentVal]) sel.value = currentVal;
+  renderExerciseDetail(sel.value);
+}
+
+function renderExerciseDetail(exerciseKey) {
+  const container = $('#history-exercise-detail');
+  if (!exerciseKey) { container.innerHTML = ''; return; }
+  const rows = [];
+  history.forEach(h => {
+    const setsForEx = (h.segments || []).filter(s => s.exerciseKey === exerciseKey && s.phase === 'strength' && s.status !== 'skipped');
+    if (!setsForEx.length) return;
+    const weights = setsForEx.map(s => s.weight).filter(w => w != null);
+    const rirs = setsForEx.map(s => s.rir).filter(r => r != null);
+    rows.push({
+      date: h.date,
+      weight: weights.length ? weights[0] : null,
+      reps: setsForEx[0].targetReps || null,
+      sets: setsForEx.length,
+      rir: rirs.length ? (rirs.reduce((a, b) => a + b, 0) / rirs.length).toFixed(1) : null
+    });
+  });
+  if (!rows.length) { container.innerHTML = '<p class="hint">No history for this exercise yet.</p>'; return; }
+  container.innerHTML = `<div style="overflow-x:auto;"><table class="ex-history-table">
+    <thead><tr><th>Date</th><th>Weight</th><th>Reps</th><th>Sets</th><th>RIR</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${new Date(r.date).toLocaleDateString()}</td><td>${r.weight != null ? r.weight + ' lb' : '—'}</td><td>${r.reps || '—'}</td><td>${r.sets}</td><td>${r.rir || '—'}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+$('#history-exercise-select').addEventListener('change', e => renderExerciseDetail(e.target.value));
+
 $('#clear-history-btn').addEventListener('click', debounceClick(() => {
   if (!confirm('Clear all workout history?')) return;
   history = [];
+  prLog = [];
   saveJSON(LS_KEYS.history, history);
+  saveJSON(LS_KEYS.prLog, prLog);
   renderHistory();
 }));
 
@@ -2624,15 +3354,178 @@ $('#clear-walks-btn').addEventListener('click', debounceClick(() => {
 }));
 
 /* ============================================================
+   SECTION 16.7: WORKOUT PREVIEW + REPEAT LAST WORKOUT
+============================================================ */
+function computeWorkoutPreview(segs) {
+  const buckets = { warmup: 0, strength: 0, rest: 0, cooldown: 0 };
+  const exerciseKeys = new Set();
+  let setCount = 0;
+  segs.forEach(s => {
+    const dur = estimateSegmentSeconds(s);
+    if (s.phase === 'warmup') buckets.warmup += dur;
+    else if (s.phase === 'rest') buckets.rest += dur;
+    else if (s.phase === 'cooldown') buckets.cooldown += dur;
+    else if (s.phase === 'strength') {
+      buckets.strength += dur;
+      if (s.type === 'time' && s.exerciseKey) { setCount++; exerciseKeys.add(s.exerciseKey); }
+    }
+  });
+  const totalSec = buckets.warmup + buckets.strength + buckets.rest + buckets.cooldown;
+  return { totalSec, exerciseCount: exerciseKeys.size, setCount, buckets };
+}
+
+function updateIdleScreen() {
+  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  renderWorkoutPreview();
+  renderRepeatLastButton();
+}
+
+function renderWorkoutPreview() {
+  const segs = presets[activePresetName];
+  if (!segs || !segs.length) { el.workoutPreview.innerHTML = ''; return; }
+  const p = computeWorkoutPreview(segs);
+  const mins = Math.round(p.totalSec / 60);
+  const parts = [];
+  if (p.buckets.warmup) parts.push(`<span>Warmup <b>${formatDuration(p.buckets.warmup)}</b></span>`);
+  if (p.buckets.strength) parts.push(`<span>Strength <b>${formatDuration(p.buckets.strength)}</b></span>`);
+  if (p.buckets.rest) parts.push(`<span>Rest <b>${formatDuration(p.buckets.rest)}</b></span>`);
+  if (p.buckets.cooldown) parts.push(`<span>Cooldown <b>${formatDuration(p.buckets.cooldown)}</b></span>`);
+  el.workoutPreview.innerHTML = `<div class="wp-summary">${mins} min · ${p.exerciseCount} exercise${p.exerciseCount === 1 ? '' : 's'} · ${p.setCount} set${p.setCount === 1 ? '' : 's'}</div>
+    <div class="wp-breakdown">${parts.join('')}</div>`;
+}
+
+function renderRepeatLastButton() {
+  if (!history.length || !history[0].workoutName || !presets[history[0].workoutName]) {
+    el.repeatLastBtn.classList.add('hidden');
+    return;
+  }
+  const last = history[0];
+  const segs = presets[last.workoutName];
+  const p = computeWorkoutPreview(segs);
+  const mins = Math.round(p.totalSec / 60);
+  el.repeatLastBtn.textContent = '🔁 Repeat Last Workout — ' + last.workoutName + ' (' + mins + ' min · ' + p.exerciseCount + ' exercises)';
+  el.repeatLastBtn.dataset.presetName = last.workoutName;
+  el.repeatLastBtn.classList.remove('hidden');
+}
+el.repeatLastBtn.addEventListener('click', debounceClick(() => {
+  const name = el.repeatLastBtn.dataset.presetName;
+  if (!name || !presets[name]) return;
+  activePresetName = name;
+  localStorage.setItem(LS_KEYS.activePreset, activePresetName);
+  updateIdleScreen();
+  startWorkout();
+}));
+
+/* ============================================================
+   SECTION 16.8: RESUME WORKOUT
+   Saved at every segment transition so an accidental reload/close
+   mid-workout can be picked back up at the right exercise/set. Does
+   not attempt to preserve exact time-remaining within a segment --
+   resuming restarts that segment's timer, trading precision for
+   reliability across a real page reload.
+============================================================ */
+function saveResumeState() {
+  if (!engine.isRunning) return;
+  saveJSON(LS_KEYS.resumeState, {
+    presetName: engine.workoutName,
+    index: engine.index,
+    currentLog: engine.currentLog,
+    segmentLog: engine.segmentLog,
+    lastEnteredWeight: engine.lastEnteredWeight,
+    workoutStartWallClock: engine.workoutStartWallClock,
+    savedAt: Date.now()
+  });
+}
+function clearResumeState() {
+  localStorage.removeItem(LS_KEYS.resumeState);
+}
+
+let pendingResume = null;
+function checkForResumableWorkout() {
+  const saved = loadJSON(LS_KEYS.resumeState, null);
+  if (!saved || !presets[saved.presetName]) { if (saved) clearResumeState(); return; }
+  const segs = presets[saved.presetName];
+  if (saved.index < 0 || saved.index >= segs.length) { clearResumeState(); return; }
+  const seg = segs[saved.index];
+  pendingResume = saved;
+  el.resumeBannerTitle.textContent = saved.presetName;
+  el.resumeBannerDetail.textContent = seg.name + (seg.setNumber ? ' — Set ' + seg.setNumber + ' of ' + seg.totalSets : '');
+  el.resumeBanner.classList.remove('hidden');
+}
+
+$('#resume-workout-btn').addEventListener('click', debounceClick(() => {
+  if (!pendingResume || !presets[pendingResume.presetName]) { el.resumeBanner.classList.add('hidden'); return; }
+  const saved = pendingResume;
+  el.resumeBanner.classList.add('hidden');
+  activePresetName = saved.presetName;
+  const segs = presets[activePresetName];
+  engine.segments = segs;
+  engine.index = saved.index - 1; // advanceToNextSegment() below bumps it to saved.index
+  engine.isRunning = true;
+  engine.isPaused = false;
+  engine.currentLog = saved.currentLog || [];
+  engine.segmentLog = saved.segmentLog || [];
+  engine.lastEnteredWeight = saved.lastEnteredWeight || {};
+  engine.workoutName = activePresetName;
+  engine.workoutStartWallClock = saved.workoutStartWallClock || Date.now();
+  engine.totalPlannedSeconds = segs.reduce((sum, s) => sum + estimateSegmentSeconds(s), 0) || 1;
+  engine.elapsedPlannedSeconds = segs.slice(0, Math.max(0, saved.index)).reduce((sum, s) => sum + estimateSegmentSeconds(s), 0);
+  el.startBtn.classList.add('hidden');
+  el.repeatLastBtn.classList.add('hidden');
+  el.controlsRow.classList.remove('hidden');
+  requestWakeLock();
+  if (settings.voiceCommands) startVoiceRecognition();
+  advanceToNextSegment();
+  startTickLoop();
+}));
+$('#resume-start-over-btn').addEventListener('click', debounceClick(() => {
+  clearResumeState();
+  pendingResume = null;
+  el.resumeBanner.classList.add('hidden');
+}));
+
+/* ============================================================
+   SECTION 16.9: WORKOUT NOTES (optional, shown once after a save)
+============================================================ */
+let selectedMood = null;
+function showWorkoutNotesModal() {
+  selectedMood = null;
+  $$('.mood-btn').forEach(b => b.classList.remove('selected'));
+  $('#workout-note-text').value = '';
+  $('#workout-notes-modal').classList.add('active');
+}
+$$('.mood-btn').forEach(btn => {
+  btn.addEventListener('click', debounceClick(() => {
+    const already = btn.classList.contains('selected');
+    $$('.mood-btn').forEach(b => b.classList.remove('selected'));
+    selectedMood = already ? null : btn.dataset.mood;
+    if (selectedMood) btn.classList.add('selected');
+  }));
+});
+$('#notes-skip-btn').addEventListener('click', debounceClick(() => {
+  $('#workout-notes-modal').classList.remove('active');
+}));
+$('#notes-save-btn').addEventListener('click', debounceClick(() => {
+  if (history.length) {
+    const note = $('#workout-note-text').value.trim();
+    if (selectedMood) history[0].mood = selectedMood;
+    if (note) history[0].note = note;
+    if (selectedMood || note) { saveJSON(LS_KEYS.history, history); renderHistory(); }
+  }
+  $('#workout-notes-modal').classList.remove('active');
+}));
+
+/* ============================================================
    SECTION 17: INIT
 ============================================================ */
 function init() {
   initSettingsUI();
   renderPresetSelect();
   renderHistory();
-  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  updateIdleScreen();
   setPhaseUI('idle');
   updateRing(0);
+  checkForResumableWorkout();
 
   $('#walk-units-' + walkUnits).checked = true;
   renderWalkStats();
