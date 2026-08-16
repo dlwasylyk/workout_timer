@@ -567,7 +567,7 @@ select, input[type=range] { width: 100%; }
   <div id="library-modal" class="modal-overlay">
     <div class="panel" style="max-height:82vh;display:flex;flex-direction:column;">
       <h2>Add From Exercise Library</h2>
-      <p class="hint">Each adds 1 set with its own instruction screen and no automatic rest — tap Add again for another set, and use + Add Segment to drop in a Rest wherever you actually want one.</p>
+      <p class="hint">Strength exercises add 1 set with its own instruction screen and no automatic rest — tap Add again for another set, and use + Add Segment to drop in a Rest wherever you actually want one. Warmup items add as a single quick segment, no instruction screen.</p>
       <div id="library-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
       <button id="library-close-btn" style="width:100%;margin-top:10px;">Close</button>
     </div>
@@ -944,6 +944,40 @@ const EXTRA_EXERCISES = [
 // The full pickable set, used by the Builder's exercise library and by the
 // instruction-overlay re-show lookup — the default program only uses EXERCISES.
 const EXERCISE_LIBRARY = EXERCISES.concat(EXTRA_EXERCISES);
+
+// Warmup library: simple single-segment templates (no instruction screen,
+// no sets — matching how warmup has always worked in this app: quick and
+// voice-guided). The first 5 mirror the Morning Workout's built-in warmup
+// (minus Walk to Gym, which stays unique to that program) so they're
+// reusable elsewhere too; the rest are new additions for variety.
+const WARMUP_LIBRARY = [
+  { key: 'armCirclesW', name: 'Arm Circles', category: 'Warmup', type: 'time', duration: 30,
+    announceStart: 'Arm circles - forward', midpointMsg: 'Arm circles - backward', endMsg: 'Done' },
+  { key: 'torsoTwistsW', name: 'Torso Twists', category: 'Warmup', type: 'time', duration: 30,
+    announceStart: 'Begin torso twists', endMsg: 'Done' },
+  { key: 'bodyweightSquatsW', name: 'Bodyweight Squats', category: 'Warmup', type: 'reps', reps: 10,
+    announceStart: 'Begin bodyweight squats', secondsPerRep: 3 },
+  { key: 'bandPullApartsW', name: 'Band Pull-Aparts', category: 'Warmup', type: 'reps', reps: 15,
+    announceStart: 'Begin band pull-aparts', secondsPerRep: 2 },
+  { key: 'overheadBandStretchW', name: 'Overhead Band Stretch', category: 'Warmup', type: 'reps', reps: 10,
+    announceStart: 'Begin overhead band stretch', secondsPerRep: 3 },
+  { key: 'jumpingJacks', name: 'Jumping Jacks', category: 'Warmup', type: 'time', duration: 30,
+    announceStart: 'Begin jumping jacks', endMsg: 'Done' },
+  { key: 'highKnees', name: 'High Knees', category: 'Warmup', type: 'time', duration: 20,
+    announceStart: 'Begin high knees', endMsg: 'Done' },
+  { key: 'legSwings', name: 'Leg Swings', category: 'Warmup', type: 'reps', reps: 10, repsNote: '(each leg)',
+    announceStart: 'Begin leg swings', secondsPerRep: 2 },
+  { key: 'hipCircles', name: 'Hip Circles', category: 'Warmup', type: 'reps', reps: 10, repsNote: '(each direction)',
+    announceStart: 'Begin hip circles', secondsPerRep: 2 },
+  { key: 'catCowStretch', name: 'Cat-Cow Stretch', category: 'Warmup', type: 'reps', reps: 10,
+    announceStart: 'Begin cat-cow stretch', secondsPerRep: 3 },
+  { key: 'ankleCircles', name: 'Ankle Circles', category: 'Warmup', type: 'reps', reps: 10, repsNote: '(each foot)',
+    announceStart: 'Begin ankle circles', secondsPerRep: 2 },
+  { key: 'inchwormWalkouts', name: 'Inchworm Walkouts', category: 'Warmup', type: 'reps', reps: 8,
+    announceStart: 'Begin inchworm walkouts', secondsPerRep: 4 }
+];
+const WARMUP_MAP = {};
+WARMUP_LIBRARY.forEach(w => WARMUP_MAP[w.key] = w);
 
 // Shared segment-builder for N sets of one exercise: an instruction screen
 // before set 1, then (work + rest) pairs. Used both by the default Morning
@@ -1833,31 +1867,59 @@ $('#seg-edit-save-btn').addEventListener('click', debounceClick(saveSegmentEdito
 $('#add-segment-btn').addEventListener('click', debounceClick(() => openSegmentEditor(undefined)));
 
 /* ---- Exercise library picker: insert a ready-made exercise (with its own
-   instruction screen and SVG) into the active preset, one set at a time. ---- */
+   instruction screen and SVG) into the active preset, one set at a time.
+   Warmup entries are simpler single segments with no instruction screen,
+   matching how warmup has always worked in this app. ---- */
 function renderLibraryList() {
   const container = $('#library-list');
   const categories = {};
-  EXERCISE_LIBRARY.forEach(ex => { (categories[ex.category] = categories[ex.category] || []).push(ex); });
+  WARMUP_LIBRARY.concat(EXERCISE_LIBRARY).forEach(ex => { (categories[ex.category] = categories[ex.category] || []).push(ex); });
   container.innerHTML = Object.keys(categories).map(cat => `
     <h3 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px;">${cat}</h3>
-    ${categories[cat].map(ex => `
+    ${categories[cat].map(ex => {
+      const isWarmup = ex.category === 'Warmup';
+      const thumb = ex.svg
+        ? `<div style="width:40px;height:40px;flex-shrink:0;">${ex.svg}</div>`
+        : `<div style="width:40px;height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;">🔥</div>`;
+      const meta = isWarmup
+        ? (ex.type === 'reps' ? ex.reps + ' reps' + (ex.repsNote ? ' ' + ex.repsNote : '') : ex.duration + 's')
+        : '1 set × ' + (ex.reps ? ex.reps + ' reps' : ex.workSeconds + 's');
+      return `
       <div class="segment-item">
         <div class="seg-top">
           <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-            <div style="width:40px;height:40px;flex-shrink:0;">${ex.svg}</div>
+            ${thumb}
             <div style="min-width:0;">
               <div class="seg-title">${ex.name}</div>
-              <div class="seg-meta">1 set × ${ex.reps ? ex.reps + ' reps' : ex.workSeconds + 's'}</div>
+              <div class="seg-meta">${meta}</div>
             </div>
           </div>
-          <button data-add="${ex.key}" class="small-btn">+ Add</button>
+          <button data-add="${ex.key}" data-kind="${isWarmup ? 'warmup' : 'strength'}" class="small-btn">+ Add</button>
         </div>
-      </div>
-    `).join('')}
+      </div>`;
+    }).join('')}
   `).join('');
   container.querySelectorAll('[data-add]').forEach(btn => {
-    btn.addEventListener('click', debounceClick(() => addExerciseFromLibrary(btn.dataset.add)));
+    btn.addEventListener('click', debounceClick(() => {
+      if (btn.dataset.kind === 'warmup') addWarmupFromLibrary(btn.dataset.add);
+      else addExerciseFromLibrary(btn.dataset.add);
+    }));
   });
+}
+
+function addWarmupFromLibrary(warmupKey) {
+  const w = WARMUP_MAP[warmupKey];
+  if (!w) return;
+  const segs = presets[activePresetName];
+  const seg = { phase: 'warmup', name: w.name, exerciseKey: w.key, type: w.type,
+    announceStart: w.announceStart, endMsg: w.endMsg };
+  if (w.type === 'reps') { seg.reps = w.reps; seg.secondsPerRep = w.secondsPerRep; if (w.repsNote) seg.repsNote = w.repsNote; }
+  else { seg.duration = w.duration; seg.warnings = [{ at: 10, msg: '10 seconds remaining' }]; }
+  if (w.midpointMsg) seg.midpointMsg = w.midpointMsg;
+  segs.push(seg);
+  saveJSON(LS_KEYS.presets, presets);
+  renderBuilder();
+  showToast('Added ' + w.name);
 }
 
 function addExerciseFromLibrary(exerciseKey) {
