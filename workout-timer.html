@@ -227,6 +227,21 @@ select, input[type=range] { width: 100%; }
 .history-entry ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 .history-entry ul.deviations { color: #ffb37a; }
 
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-tile { background: var(--surface2); border-radius: 10px; padding: 10px; text-align: center; }
+.stat-tile .stat-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-tile .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.stat-tile.pr-tile { grid-column: 1 / -1; text-align: left; }
+.stat-tile.pr-tile ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+
+.ex-history-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.ex-history-table th, .ex-history-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #21262e; }
+.ex-history-table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+
+.set-breakdown { margin-top: 8px; font-size: 13px; }
+.set-breakdown-exercise { margin-bottom: 6px; }
+.set-row { color: var(--muted); padding-left: 8px; }
+
 /* ============================= SPOTIFY ============================= */
 .spotify-banner {
   background: linear-gradient(135deg, #1DB95433, #1DB95411); border: 1px solid #1DB95466;
@@ -243,6 +258,21 @@ select, input[type=range] { width: 100%; }
 
 /* ============================= TOASTS ============================= */
 #toast-wrap { position: fixed; top: calc(10px + var(--safe-top)); left: 0; right: 0; z-index: 999; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+
+/* Non-blocking RIR quick-pick: floats over the timer screen after a set,
+   never pauses the workout, auto-dismisses if ignored. */
+#rir-prompt {
+  position: fixed; top: calc(56px + var(--safe-top)); left: 12px; right: 12px; max-width: 496px; margin: 0 auto;
+  z-index: 150; background: var(--surface); border: 1px solid #333a44; border-radius: 12px;
+  padding: 8px 10px; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  animation: rirSlideIn .25s ease;
+}
+#rir-prompt.hidden { display: none; }
+@keyframes rirSlideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+#rir-prompt-label { font-size: 11px; color: var(--muted); flex-shrink: 0; white-space: nowrap; }
+#rir-prompt-buttons { display: flex; gap: 5px; flex: 1; }
+#rir-prompt-buttons button { flex: 1; min-height: 40px; padding: 4px; font-size: 14px; background: var(--surface2); }
+#rir-dismiss-btn { min-height: 32px; min-width: 32px; padding: 4px 8px; background: transparent; color: var(--muted); flex-shrink: 0; }
 .toast { background: #000000cc; color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 13px; max-width: 90%; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
 
 .hidden { display: none !important; }
@@ -277,8 +307,11 @@ select, input[type=range] { width: 100%; }
       </div>
 
       <div id="weight-log-row">
-        <label for="quick-weight" style="font-size:13px;color:var(--muted);">Weight (lbs)</label>
-        <input type="number" id="quick-weight" inputmode="decimal" placeholder="e.g. 25">
+        <div style="flex:1;">
+          <label for="quick-weight" style="font-size:13px;color:var(--muted);">Weight (lbs)</label>
+          <input type="number" id="quick-weight" inputmode="decimal" placeholder="e.g. 25">
+          <div id="weight-hint" class="hint hidden" style="margin-top:2px;"></div>
+        </div>
       </div>
 
       <div class="progress-label">Overall workout progress</div>
@@ -378,7 +411,18 @@ select, input[type=range] { width: 100%; }
   <!-- ============================= HISTORY SCREEN ============================= -->
   <section id="screen-history" class="screen">
     <div class="panel">
-      <h2>Workout History</h2>
+      <h2>Stats</h2>
+      <div id="history-stats-grid" class="stats-grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>By Exercise</h2>
+      <select id="history-exercise-select"><option value="">Choose an exercise…</option></select>
+      <div id="history-exercise-detail"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Workouts</h2>
       <div id="history-list"><p class="hint">No workouts logged yet.</p></div>
       <button id="clear-history-btn" class="small-btn" style="margin-top:8px;">Clear History</button>
     </div>
@@ -505,9 +549,12 @@ select, input[type=range] { width: 100%; }
       <div class="set-meta" id="instruction-setmeta"></div>
     </div>
     <div id="instruction-actions">
-      <div class="weight-row">
-        <label for="instruction-weight" style="font-size:13px;color:var(--muted);">Weight (lbs):</label>
-        <input type="number" id="instruction-weight" inputmode="decimal" placeholder="optional">
+      <div class="weight-row" style="flex-direction:column;align-items:stretch;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label for="instruction-weight" style="font-size:13px;color:var(--muted);">Weight (lbs):</label>
+          <input type="number" id="instruction-weight" inputmode="decimal" placeholder="optional" style="flex:1;">
+        </div>
+        <div id="instr-weight-hint" class="hint hidden"></div>
       </div>
       <button id="start-set-btn">START SET</button>
       <label class="skip-instruction-toggle">
@@ -571,6 +618,19 @@ select, input[type=range] { width: 100%; }
       <div id="library-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
       <button id="library-close-btn" style="width:100%;margin-top:10px;">Close</button>
     </div>
+  </div>
+
+  <!-- ============================= RIR QUICK-PICK (non-blocking) ============================= -->
+  <div id="rir-prompt" class="hidden">
+    <span id="rir-prompt-label">Effort? (RIR)</span>
+    <div id="rir-prompt-buttons">
+      <button data-rir="0">0</button>
+      <button data-rir="1">1</button>
+      <button data-rir="2">2</button>
+      <button data-rir="3">3</button>
+      <button data-rir="4">4+</button>
+    </div>
+    <button id="rir-dismiss-btn">✕</button>
   </div>
 
   <div id="toast-wrap"></div>
@@ -1055,7 +1115,9 @@ const LS_KEYS = {
   spotifyClientId: 'gymtimer_spotify_client_id',
   spotifyVerifier: 'gymtimer_spotify_verifier',
   walks: 'gymtimer_walks',
-  walkUnits: 'gymtimer_walk_units'
+  walkUnits: 'gymtimer_walk_units',
+  prLog: 'gymtimer_pr_log',
+  resumeState: 'gymtimer_resume_state'
 };
 
 const DEFAULT_SETTINGS = {
@@ -1121,6 +1183,67 @@ if (!presets[activePresetName]) activePresetName = Object.keys(presets)[0];
 let history = loadJSON(LS_KEYS.history, []);
 let walks = loadJSON(LS_KEYS.walks, []);
 let walkUnits = localStorage.getItem(LS_KEYS.walkUnits) || 'mi';
+let prLog = loadJSON(LS_KEYS.prLog, []); // {date, exerciseName, weight, reps, category}
+
+/* ============================================================
+   WEIGHT SUGGESTION — simple, transparent, always overridable.
+   Looks at the most recent logged set for this exercise; if that set
+   had RIR 3+ (comfortable, room to spare) it nudges the weight up a
+   small fixed increment, otherwise it holds steady. No history = no
+   suggestion, never invented from nothing.
+============================================================ */
+function getLastWeightForExercise(exerciseKey) {
+  if (!exerciseKey) return null;
+  for (const entry of history) {
+    const segs = entry.segments || [];
+    for (let i = segs.length - 1; i >= 0; i--) {
+      const s = segs[i];
+      if (s.exerciseKey === exerciseKey && s.weight != null) {
+        return { weight: s.weight, reps: s.targetReps || null, rir: (s.rir != null ? s.rir : null), date: entry.date };
+      }
+    }
+  }
+  return null;
+}
+
+function suggestNextWeight(last) {
+  if (!last || last.weight == null) return null;
+  if (last.rir == null) return last.weight; // no effort data — stay put, don't guess
+  if (last.rir >= 3) return Math.round((last.weight + (last.weight >= 20 ? 5 : 2.5)) * 2) / 2; // had room — small nudge up
+  return last.weight; // 0-2 RIR: near max effort — hold steady
+}
+
+function weightHintText(exerciseKey) {
+  const last = getLastWeightForExercise(exerciseKey);
+  if (!last) return '';
+  const suggested = suggestNextWeight(last);
+  let text = 'Last: ' + last.weight + ' lb' + (last.reps ? ' × ' + last.reps : '');
+  if (suggested != null && suggested !== last.weight) text += ' · Suggested: ' + suggested + ' lb';
+  return text;
+}
+
+/* ============================================================
+   PERSONAL RECORDS — conservative: only from sets that were actually
+   completed (not skipped), and only once there's prior data to beat.
+============================================================ */
+function checkForPR(exerciseKey, weight, reps) {
+  if (!exerciseKey || weight == null || !reps) return null;
+  let bestWeightAtReps = 0, bestRepsAtWeight = 0, bestVolume = 0, hasPriorData = false;
+  history.forEach(entry => (entry.segments || []).forEach(s => {
+    if (s.exerciseKey === exerciseKey && s.status !== 'skipped' && s.weight != null && s.targetReps) {
+      hasPriorData = true;
+      if (s.targetReps >= reps) bestWeightAtReps = Math.max(bestWeightAtReps, s.weight);
+      if (s.weight >= weight) bestRepsAtWeight = Math.max(bestRepsAtWeight, s.targetReps);
+      bestVolume = Math.max(bestVolume, s.weight * s.targetReps);
+    }
+  }));
+  if (!hasPriorData) return null; // first time doing this exercise — not a "record" yet
+  const wins = [];
+  if (weight > bestWeightAtReps) wins.push('heaviest at ' + reps + ' reps');
+  if (reps > bestRepsAtWeight) wins.push('most reps at ' + weight + ' lb');
+  if (weight * reps > bestVolume) wins.push('best volume');
+  return wins.length ? wins : null;
+}
 
 /* ============================================================
    SECTION 4: DOM REFERENCES
@@ -1149,6 +1272,7 @@ const el = {
   nextUpName: $('#next-up-name'),
   weightLogRow: $('#weight-log-row'),
   quickWeight: $('#quick-weight'),
+  weightHint: $('#weight-hint'),
   voiceStatusLabel: $('#voice-status-label'),
 
   overlay: $('#instruction-overlay'),
@@ -1158,8 +1282,12 @@ const el = {
   instrMistakes: $('#instruction-mistakes'),
   instrSetMeta: $('#instruction-setmeta'),
   instrWeight: $('#instruction-weight'),
+  instrWeightHint: $('#instr-weight-hint'),
   startSetBtn: $('#start-set-btn'),
   skipFutureCheckbox: $('#skip-future-instructions'),
+
+  rirPrompt: $('#rir-prompt'),
+  rirDismissBtn: $('#rir-dismiss-btn'),
 
   toastWrap: $('#toast-wrap')
 };
@@ -1276,19 +1404,22 @@ const engine = {
   midpointFired: false,
   totalPlannedSeconds: 0,
   elapsedPlannedSeconds: 0,
-  currentLog: [], // {exerciseKey, name, weight}
-  segmentLog: [], // {name, phase, setNumber, totalSets, status, plannedSeconds, actualSeconds}
+  currentLog: [], // {exerciseKey, name, weight} — kept for backward-compatible history summary
+  segmentLog: [], // {name, phase, setNumber, totalSets, status, plannedSeconds, actualSeconds, exerciseKey?, weight?, targetReps?, rir?}
+  lastEnteredWeight: {}, // exerciseKey -> weight typed this workout, carried forward set-to-set
+  workoutStartWallClock: 0,
   awaitingInstruction: false,
   workoutName: ''
 };
 
 // Records how a segment actually ended so History can distinguish a full
 // completion from one cut short on purpose (Complete) versus abandoned (Skip).
+// Returns the log entry so callers can attach weight/RIR to it.
 function recordSegmentOutcome(status) {
   const seg = engine.segments[engine.index];
-  if (!seg || seg.type === 'instruction') return;
+  if (!seg || seg.type === 'instruction') return null;
   const elapsedMs = (performance.now() - engine.segStartTs) - engine.pausedAccumMs;
-  engine.segmentLog.push({
+  const entry = {
     name: seg.name,
     phase: seg.phase,
     setNumber: seg.setNumber,
@@ -1296,7 +1427,18 @@ function recordSegmentOutcome(status) {
     status,
     plannedSeconds: estimateSegmentSeconds(seg),
     actualSeconds: Math.max(0, Math.round(elapsedMs / 1000))
-  });
+  };
+  if (seg.exerciseKey) entry.exerciseKey = seg.exerciseKey;
+  if (seg.phase === 'strength' && seg.type === 'time') {
+    const w = parseFloat(el.quickWeight.value);
+    if (!isNaN(w)) {
+      entry.weight = w;
+      engine.lastEnteredWeight[seg.exerciseKey] = w;
+    }
+    if (seg.targetReps) entry.targetReps = seg.targetReps;
+  }
+  engine.segmentLog.push(entry);
+  return entry;
 }
 
 function estimateSegmentSeconds(seg) {
@@ -1318,6 +1460,8 @@ function startWorkout() {
   engine.isPaused = false;
   engine.currentLog = [];
   engine.segmentLog = [];
+  engine.lastEnteredWeight = {};
+  engine.workoutStartWallClock = Date.now();
   engine.workoutName = activePresetName;
   engine.totalPlannedSeconds = segs.reduce((sum, s) => sum + estimateSegmentSeconds(s), 0) || 1;
   engine.elapsedPlannedSeconds = 0;
@@ -1343,11 +1487,16 @@ function stopWorkout(save) {
   el.nextUp.classList.add('hidden');
   el.weightLogRow.style.display = 'none';
   el.overlay.classList.remove('active');
+  hideRirPrompt();
 
   if (save && (engine.currentLog.length > 0 || engine.segmentLog.length > 0)) {
+    const durationSeconds = engine.workoutStartWallClock
+      ? Math.max(0, Math.round((Date.now() - engine.workoutStartWallClock) / 1000))
+      : null;
     history.unshift({
       date: new Date().toISOString(),
       workoutName: engine.workoutName,
+      durationSeconds,
       exercises: engine.currentLog.slice(),
       segments: engine.segmentLog.slice()
     });
@@ -1390,9 +1539,50 @@ function skipSegment() {
 
 function completeSegment() {
   if (!engine.isRunning || engine.awaitingInstruction) return;
-  recordSegmentOutcome('completed-early');
+  const seg = engine.segments[engine.index];
+  const entry = recordSegmentOutcome('completed-early');
+  handleSetCompletion(seg, entry, 'completed-early');
   advanceToNextSegment();
 }
+
+// After a strength set finishes (naturally or via Complete), offer a fast,
+// skippable RIR pick and check whether it's a new personal record. Never
+// blocks advancement — both happen "on top of" the workout continuing.
+function handleSetCompletion(seg, entry, status) {
+  if (!entry || !seg) return;
+  if (seg.phase !== 'strength' || seg.type !== 'time') return;
+  if (status !== 'completed' && status !== 'completed-early') return;
+  showRirPrompt(entry);
+  if (entry.weight != null && entry.targetReps) {
+    const wins = checkForPR(seg.exerciseKey, entry.weight, entry.targetReps);
+    if (wins) {
+      showToast('🏆 NEW BEST — ' + seg.name + ': ' + entry.weight + ' lb × ' + entry.targetReps + ' (' + wins[0] + ')', 5500);
+      prLog.unshift({ date: new Date().toISOString(), exerciseName: seg.name, weight: entry.weight, reps: entry.targetReps, category: wins[0] });
+      prLog = prLog.slice(0, 20);
+      saveJSON(LS_KEYS.prLog, prLog);
+    }
+  }
+}
+
+let rirDismissTimeout = null;
+function showRirPrompt(entry) {
+  engine.pendingRirEntry = entry;
+  el.rirPrompt.classList.remove('hidden');
+  clearTimeout(rirDismissTimeout);
+  rirDismissTimeout = setTimeout(hideRirPrompt, 8000);
+}
+function hideRirPrompt() {
+  el.rirPrompt.classList.add('hidden');
+  engine.pendingRirEntry = null;
+  clearTimeout(rirDismissTimeout);
+}
+$$('#rir-prompt-buttons button').forEach(btn => {
+  btn.addEventListener('click', debounceClick(() => {
+    if (engine.pendingRirEntry) engine.pendingRirEntry.rir = parseInt(btn.dataset.rir, 10);
+    hideRirPrompt();
+  }));
+});
+el.rirDismissBtn.addEventListener('click', debounceClick(hideRirPrompt));
 
 function advanceToNextSegment() {
   window.speechSynthesis && window.speechSynthesis.cancel();
@@ -1430,9 +1620,22 @@ function advanceToNextSegment() {
   engine.awaitingInstruction = false;
   el.overlay.classList.remove('active');
 
-  // Weight logging row shown during strength work segments.
+  // Weight logging row shown during strength work segments, pre-filled with
+  // whatever was typed for an earlier set of this exercise tonight, falling
+  // back to a suggestion from last time this exercise was done.
   if (seg.phase === 'strength' && seg.type === 'time') {
     el.weightLogRow.style.display = 'flex';
+    const carried = engine.lastEnteredWeight[seg.exerciseKey];
+    if (carried != null) {
+      el.quickWeight.value = carried;
+    } else {
+      const last = getLastWeightForExercise(seg.exerciseKey);
+      const suggested = last ? suggestNextWeight(last) : null;
+      el.quickWeight.value = suggested != null ? suggested : '';
+    }
+    const hint = weightHintText(seg.exerciseKey);
+    el.weightHint.textContent = hint;
+    el.weightHint.classList.toggle('hidden', !hint);
   } else {
     el.weightLogRow.style.display = 'none';
   }
@@ -1546,7 +1749,8 @@ function tick() {
     if (remaining <= 0) {
       if (seg.endMsg) speak(seg.endMsg);
       vibrate(150);
-      recordSegmentOutcome('completed');
+      const entry = recordSegmentOutcome('completed');
+      handleSetCompletion(seg, entry, 'completed');
       advanceToNextSegment();
     }
   } else if (seg.type === 'reps') {
@@ -1592,8 +1796,13 @@ function showInstructionOverlay(seg) {
   el.instrText.textContent = seg.text;
   el.instrMistakes.textContent = 'Common mistakes: ' + seg.mistakes;
   const repsLabel = seg.reps ? (seg.reps + ' reps' + (seg.repsNote ? ' ' + seg.repsNote : '')) : '30 seconds';
-  el.instrSetMeta.textContent = '2 sets × ' + repsLabel;
-  el.instrWeight.value = '';
+  el.instrSetMeta.textContent = (seg.totalSets || 2) + ' sets × ' + repsLabel;
+  const last = seg.exerciseKey ? getLastWeightForExercise(seg.exerciseKey) : null;
+  const suggested = last ? suggestNextWeight(last) : null;
+  el.instrWeight.value = suggested != null ? suggested : '';
+  const hint = seg.exerciseKey ? weightHintText(seg.exerciseKey) : '';
+  el.instrWeightHint.textContent = hint;
+  el.instrWeightHint.classList.toggle('hidden', !hint);
   el.skipFutureCheckbox.checked = settings.skipInstructionFuture;
   el.overlay.classList.add('active');
 }
@@ -1603,6 +1812,7 @@ function closeInstructionAndStartSet() {
   const weight = el.instrWeight.value ? parseFloat(el.instrWeight.value) : null;
   if (weight !== null && !isNaN(weight)) {
     logExerciseWeight(seg.exerciseKey, seg.name, weight);
+    engine.lastEnteredWeight[seg.exerciseKey] = weight; // carries into set 1's quick-weight field
   }
   settings.skipInstructionFuture = el.skipFutureCheckbox.checked;
   saveSettings();
@@ -2023,45 +2233,160 @@ $('#import-file').addEventListener('change', (e) => {
 /* ============================================================
    SECTION 15: HISTORY
 ============================================================ */
+// Per-set weight/RIR breakdown, grouped by exercise — richer replacement
+// for the old flat "name — weight" list, gracefully empty for older
+// history entries that predate per-set weight/RIR capture.
+function buildSetBreakdown(entry) {
+  const byExercise = {};
+  const order = [];
+  (entry.segments || []).forEach(s => {
+    if (s.phase !== 'strength' || !s.exerciseKey) return;
+    if (!byExercise[s.exerciseKey]) { byExercise[s.exerciseKey] = []; order.push(s.exerciseKey); }
+    byExercise[s.exerciseKey].push(s);
+  });
+  if (!order.length) return '';
+  return '<div class="set-breakdown">' + order.map(key => {
+    const sets = byExercise[key];
+    const rows = sets.map(s => {
+      const bits = [];
+      if (s.weight != null) bits.push(s.weight + ' lb');
+      if (s.targetReps) bits.push('× ' + s.targetReps);
+      if (s.rir != null) bits.push('RIR ' + s.rir);
+      if (s.status === 'skipped') bits.push('(skipped)');
+      else if (s.status === 'completed-early') bits.push('(early)');
+      return `<div class="set-row">Set ${s.setNumber}${s.totalSets ? '/' + s.totalSets : ''} — ${bits.join(' ') || 'no data'}</div>`;
+    }).join('');
+    return `<div class="set-breakdown-exercise"><b>${sets[0].name}</b>${rows}</div>`;
+  }).join('') + '</div>';
+}
+
 function renderHistory() {
   const list = $('#history-list');
-  if (!history.length) { list.innerHTML = '<p class="hint">No workouts logged yet.</p>'; return; }
-  list.innerHTML = '';
-  history.forEach(entry => {
-    const d = new Date(entry.date);
-    const div = document.createElement('div');
-    div.className = 'history-entry';
-    const exList = entry.exercises && entry.exercises.length
-      ? '<ul>' + entry.exercises.map(x => `<li>${x.name}${x.weight ? ' — ' + x.weight + ' lbs' : ''}</li>`).join('') + '</ul>'
-      : '<div class="hint">No weights logged.</div>';
+  if (!history.length) { list.innerHTML = '<p class="hint">No workouts logged yet.</p>'; }
+  else {
+    list.innerHTML = '';
+    history.forEach(entry => {
+      const d = new Date(entry.date);
+      const div = document.createElement('div');
+      div.className = 'history-entry';
+      const breakdown = buildSetBreakdown(entry);
+      const exList = breakdown || (entry.exercises && entry.exercises.length
+        ? '<ul>' + entry.exercises.map(x => `<li>${x.name}${x.weight ? ' — ' + x.weight + ' lbs' : ''}</li>`).join('') + '</ul>'
+        : '<div class="hint">No weights logged.</div>');
 
-    // Segment-level completion tracking: silence means "completed as planned",
-    // only deviations (early finishes, skips) get called out explicitly.
-    const segments = entry.segments || [];
-    const completedCount = segments.filter(s => s.status === 'completed').length;
-    const earlyCount = segments.filter(s => s.status === 'completed-early').length;
-    const skippedCount = segments.filter(s => s.status === 'skipped').length;
-    const segSummary = segments.length
-      ? `<div class="h-meta">${completedCount} completed as planned${earlyCount ? ', ' + earlyCount + ' completed early' : ''}${skippedCount ? ', ' + skippedCount + ' skipped' : ''}</div>`
-      : '';
-    const deviations = segments.filter(s => s.status !== 'completed');
-    const devList = deviations.length
-      ? '<ul class="deviations">' + deviations.map(s => {
-          const setLabel = s.setNumber ? ` Set ${s.setNumber}/${s.totalSets}` : '';
-          const label = s.status === 'skipped' ? 'skipped' : `completed early (${s.actualSeconds}s of ${s.plannedSeconds}s)`;
-          return `<li>${s.name}${setLabel} — ${label}</li>`;
-        }).join('') + '</ul>'
-      : '';
+      // Segment-level completion tracking: silence means "completed as planned",
+      // only deviations (early finishes, skips) get called out explicitly.
+      const segments = entry.segments || [];
+      const completedCount = segments.filter(s => s.status === 'completed').length;
+      const earlyCount = segments.filter(s => s.status === 'completed-early').length;
+      const skippedCount = segments.filter(s => s.status === 'skipped').length;
+      const durationLabel = entry.durationSeconds ? formatDuration(entry.durationSeconds) : null;
+      const segSummary = segments.length
+        ? `<div class="h-meta">${durationLabel ? durationLabel + ' · ' : ''}${completedCount} completed as planned${earlyCount ? ', ' + earlyCount + ' completed early' : ''}${skippedCount ? ', ' + skippedCount + ' skipped' : ''}</div>`
+        : '';
+      const deviations = segments.filter(s => s.status !== 'completed');
+      const devList = deviations.length
+        ? '<ul class="deviations">' + deviations.map(s => {
+            const setLabel = s.setNumber ? ` Set ${s.setNumber}/${s.totalSets}` : '';
+            const label = s.status === 'skipped' ? 'skipped' : `completed early (${s.actualSeconds}s of ${s.plannedSeconds}s)`;
+            return `<li>${s.name}${setLabel} — ${label}</li>`;
+          }).join('') + '</ul>'
+        : '';
 
-    div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
-      <div class="h-meta">${entry.workoutName}</div>${segSummary}${devList}${exList}`;
-    list.appendChild(div);
-  });
+      div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="h-meta">${entry.workoutName}</div>${segSummary}${devList}${exList}`;
+      list.appendChild(div);
+    });
+  }
+  renderHistoryStats();
+  renderExerciseSelect();
 }
+
+function computeHistoryStats() {
+  const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  const workoutsThisWeek = history.filter(h => new Date(h.date).getTime() >= weekAgo).length;
+  const totalWorkoutSeconds = history.reduce((sum, h) => sum + (h.durationSeconds || 0), 0);
+  const totalWalkSeconds = walks.reduce((sum, w) => sum + (w.elapsedSeconds || 0), 0);
+  const totalWalkMeters = walks.reduce((sum, w) => sum + (w.distanceMeters || 0), 0);
+  let strengthSets = 0, rirSum = 0, rirCount = 0, totalVolume = 0;
+  history.forEach(h => (h.segments || []).forEach(s => {
+    if (s.phase === 'strength' && s.status !== 'skipped') {
+      strengthSets++;
+      if (s.rir != null) { rirSum += s.rir; rirCount++; }
+      if (s.weight != null && s.targetReps) totalVolume += s.weight * s.targetReps;
+    }
+  }));
+  return {
+    workoutsThisWeek, totalWorkoutSeconds, totalWalkSeconds,
+    totalWalkMiles: totalWalkMeters / 1609.344,
+    strengthSets, totalVolume,
+    avgRir: rirCount ? (rirSum / rirCount) : null
+  };
+}
+
+function renderHistoryStats() {
+  const grid = $('#history-stats-grid');
+  const s = computeHistoryStats();
+  const tiles = [
+    { value: s.workoutsThisWeek, label: 'Workouts this week' },
+    { value: s.totalWorkoutSeconds ? formatDuration(s.totalWorkoutSeconds) : '—', label: 'Total workout time' },
+    { value: s.totalWalkSeconds ? s.totalWalkMiles.toFixed(1) + ' mi' : '—', label: 'Total walking distance' },
+    { value: s.strengthSets || '—', label: 'Strength sets logged' },
+    { value: s.totalVolume ? Math.round(s.totalVolume).toLocaleString() + ' lb' : '—', label: 'Total volume' },
+    { value: s.avgRir != null ? s.avgRir.toFixed(1) : '—', label: 'Average RIR' }
+  ];
+  let html = tiles.map(t => `<div class="stat-tile"><div class="stat-value">${t.value}</div><div class="stat-label">${t.label}</div></div>`).join('');
+  if (prLog.length) {
+    html += `<div class="stat-tile pr-tile"><div class="stat-label">🏆 Recent personal records</div>
+      <ul>${prLog.slice(0, 3).map(p => `<li>${p.exerciseName} — ${p.weight} lb × ${p.reps} (${p.category})</li>`).join('')}</ul></div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function renderExerciseSelect() {
+  const sel = $('#history-exercise-select');
+  const seen = {};
+  history.forEach(h => (h.segments || []).forEach(s => {
+    if (s.exerciseKey && s.phase === 'strength') seen[s.exerciseKey] = s.name;
+  }));
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Choose an exercise…</option>' +
+    Object.keys(seen).map(k => `<option value="${k}">${seen[k]}</option>`).join('');
+  if (seen[currentVal]) sel.value = currentVal;
+  renderExerciseDetail(sel.value);
+}
+
+function renderExerciseDetail(exerciseKey) {
+  const container = $('#history-exercise-detail');
+  if (!exerciseKey) { container.innerHTML = ''; return; }
+  const rows = [];
+  history.forEach(h => {
+    const setsForEx = (h.segments || []).filter(s => s.exerciseKey === exerciseKey && s.phase === 'strength' && s.status !== 'skipped');
+    if (!setsForEx.length) return;
+    const weights = setsForEx.map(s => s.weight).filter(w => w != null);
+    const rirs = setsForEx.map(s => s.rir).filter(r => r != null);
+    rows.push({
+      date: h.date,
+      weight: weights.length ? weights[0] : null,
+      reps: setsForEx[0].targetReps || null,
+      sets: setsForEx.length,
+      rir: rirs.length ? (rirs.reduce((a, b) => a + b, 0) / rirs.length).toFixed(1) : null
+    });
+  });
+  if (!rows.length) { container.innerHTML = '<p class="hint">No history for this exercise yet.</p>'; return; }
+  container.innerHTML = `<div style="overflow-x:auto;"><table class="ex-history-table">
+    <thead><tr><th>Date</th><th>Weight</th><th>Reps</th><th>Sets</th><th>RIR</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${new Date(r.date).toLocaleDateString()}</td><td>${r.weight != null ? r.weight + ' lb' : '—'}</td><td>${r.reps || '—'}</td><td>${r.sets}</td><td>${r.rir || '—'}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+$('#history-exercise-select').addEventListener('change', e => renderExerciseDetail(e.target.value));
+
 $('#clear-history-btn').addEventListener('click', debounceClick(() => {
   if (!confirm('Clear all workout history?')) return;
   history = [];
+  prLog = [];
   saveJSON(LS_KEYS.history, history);
+  saveJSON(LS_KEYS.prLog, prLog);
   renderHistory();
 }));
 
