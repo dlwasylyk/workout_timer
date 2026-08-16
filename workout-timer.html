@@ -242,6 +242,12 @@ select, input[type=range] { width: 100%; }
 .modal-overlay.active { display: flex; }
 .modal-overlay .panel { width: 100%; max-width: 420px; margin-bottom: 0; }
 
+#mood-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.mood-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; font-size: 12px; background: var(--surface2); }
+.mood-btn span { font-size: 24px; }
+.mood-btn.selected { background: var(--strength); color: #14100a; }
+#workout-note-text { width: 100%; margin-top: 6px; resize: vertical; font-family: inherit; }
+
 /* ============================= HISTORY ============================= */
 .history-entry { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 .history-entry .h-date { font-weight: 700; font-size: 14px; }
@@ -714,6 +720,25 @@ select, input[type=range] { width: 100%; }
       <p class="hint" id="substitute-hint"></p>
       <div id="substitute-list" style="overflow-y:auto;flex:1;min-height:0;"></div>
       <button id="substitute-cancel-btn" style="width:100%;margin-top:10px;">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ============================= WORKOUT NOTES (optional, post-workout) ============================= -->
+  <div id="workout-notes-modal" class="modal-overlay">
+    <div class="panel">
+      <h2>How did it feel?</h2>
+      <div id="mood-options">
+        <button data-mood="Great" class="mood-btn"><span>😄</span>Great</button>
+        <button data-mood="Good" class="mood-btn"><span>🙂</span>Good</button>
+        <button data-mood="Rough" class="mood-btn"><span>😕</span>Rough</button>
+        <button data-mood="Awful" class="mood-btn"><span>😣</span>Awful</button>
+      </div>
+      <label for="workout-note-text" style="font-size:13px;color:var(--muted);display:block;margin-top:10px;">Notes (optional)</label>
+      <textarea id="workout-note-text" rows="3" placeholder="Anything worth remembering for next time…"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button id="notes-skip-btn" style="flex:1;">Skip</button>
+        <button id="notes-save-btn" style="flex:1;background:var(--strength);color:#14100a;">Save</button>
+      </div>
     </div>
   </div>
 
@@ -1612,6 +1637,7 @@ function stopWorkout(save) {
     history = history.slice(0, 50);
     saveJSON(LS_KEYS.history, history);
     renderHistory();
+    showWorkoutNotesModal();
   }
 
   el.exerciseName.textContent = 'Ready to start';
@@ -2668,8 +2694,12 @@ function renderHistory() {
           }).join('') + '</ul>'
         : '';
 
+      const moodEmoji = { Great: '😄', Good: '🙂', Rough: '😕', Awful: '😣' };
+      const moodLine = entry.mood ? `<div class="h-meta">${moodEmoji[entry.mood] || ''} ${entry.mood}</div>` : '';
+      const noteLine = entry.note ? `<div class="hint" style="margin-top:4px;font-style:italic;">"${entry.note}"</div>` : '';
+
       div.innerHTML = `<div class="h-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
-        <div class="h-meta">${entry.workoutName}</div>${segSummary}${devList}${exList}`;
+        <div class="h-meta">${entry.workoutName}</div>${moodLine}${segSummary}${devList}${exList}${noteLine}`;
       list.appendChild(div);
     });
   }
@@ -3452,6 +3482,37 @@ $('#resume-start-over-btn').addEventListener('click', debounceClick(() => {
   clearResumeState();
   pendingResume = null;
   el.resumeBanner.classList.add('hidden');
+}));
+
+/* ============================================================
+   SECTION 16.9: WORKOUT NOTES (optional, shown once after a save)
+============================================================ */
+let selectedMood = null;
+function showWorkoutNotesModal() {
+  selectedMood = null;
+  $$('.mood-btn').forEach(b => b.classList.remove('selected'));
+  $('#workout-note-text').value = '';
+  $('#workout-notes-modal').classList.add('active');
+}
+$$('.mood-btn').forEach(btn => {
+  btn.addEventListener('click', debounceClick(() => {
+    const already = btn.classList.contains('selected');
+    $$('.mood-btn').forEach(b => b.classList.remove('selected'));
+    selectedMood = already ? null : btn.dataset.mood;
+    if (selectedMood) btn.classList.add('selected');
+  }));
+});
+$('#notes-skip-btn').addEventListener('click', debounceClick(() => {
+  $('#workout-notes-modal').classList.remove('active');
+}));
+$('#notes-save-btn').addEventListener('click', debounceClick(() => {
+  if (history.length) {
+    const note = $('#workout-note-text').value.trim();
+    if (selectedMood) history[0].mood = selectedMood;
+    if (note) history[0].note = note;
+    if (selectedMood || note) { saveJSON(LS_KEYS.history, history); renderHistory(); }
+  }
+  $('#workout-notes-modal').classList.remove('active');
 }));
 
 /* ============================================================
