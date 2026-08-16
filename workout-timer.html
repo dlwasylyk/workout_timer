@@ -100,6 +100,19 @@ header.app-header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
 
 #controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; width: 100%; }
 
+#workout-preview { margin: 4px 0 10px; }
+#workout-preview .wp-summary { font-size: 13px; color: var(--muted); }
+#workout-preview .wp-breakdown { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin-top: 6px; font-size: 12px; }
+#workout-preview .wp-breakdown span { color: var(--muted); }
+#workout-preview .wp-breakdown b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+#rest-adjust-row {
+  display: none; grid-template-columns: 1fr 1fr auto; gap: 10px; width: 100%; margin-top: 14px;
+}
+#rest-adjust-row.active { display: grid; }
+#rest-adjust-row button { background: var(--surface2); }
+#rest-save-btn { min-width: 44px; padding: 0 12px; }
+
 #mini-spotify-bar {
   display: flex; align-items: center; gap: 4px; width: 100%;
   background: #21252b; border: 1px solid #333a44; border-radius: 10px;
@@ -291,9 +304,20 @@ select, input[type=range] { width: 100%; }
   <!-- ============================= TIMER SCREEN ============================= -->
   <main id="screen-timer" class="screen active">
 
+    <div id="resume-banner" class="hidden panel" style="border:2px solid var(--strength);">
+      <h2 style="margin-top:0;">Resume workout?</h2>
+      <div id="resume-banner-title" style="font-weight:700;font-size:16px;"></div>
+      <div id="resume-banner-detail" class="hint"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <button id="resume-workout-btn" style="background:var(--strength);color:#14100a;">RESUME</button>
+        <button id="resume-start-over-btn">START OVER</button>
+      </div>
+    </div>
+
     <div id="timer-card">
       <div id="exercise-name">Ready to start</div>
       <div id="segment-sub">Tap START WORKOUT to begin the Morning Workout</div>
+      <div id="workout-preview"></div>
       <div id="set-indicator"></div>
 
       <div id="ring-wrap">
@@ -319,6 +343,13 @@ select, input[type=range] { width: 100%; }
     </div>
 
     <button id="start-btn">▶ START WORKOUT</button>
+    <button id="repeat-last-btn" class="hidden" style="width:100%;margin-top:10px;background:var(--surface2);"></button>
+
+    <div id="rest-adjust-row" class="hidden">
+      <button id="rest-minus-btn">-15 sec</button>
+      <button id="rest-plus-btn">+15 sec</button>
+      <button id="rest-save-btn" title="Save this rest length to the preset">💾</button>
+    </div>
 
     <div id="controls-row" class="hidden">
       <button id="pause-btn" class="btn-pause">⏸ PAUSE</button>
@@ -1262,6 +1293,12 @@ const el = {
   timerCard: $('#timer-card'),
   overallFill: $('#overall-progress-fill'),
   startBtn: $('#start-btn'),
+  workoutPreview: $('#workout-preview'),
+  repeatLastBtn: $('#repeat-last-btn'),
+  resumeBanner: $('#resume-banner'),
+  resumeBannerTitle: $('#resume-banner-title'),
+  resumeBannerDetail: $('#resume-banner-detail'),
+  restAdjustRow: $('#rest-adjust-row'),
   controlsRow: $('#controls-row'),
   pauseBtn: $('#pause-btn'),
   completeBtn: $('#complete-btn'),
@@ -1408,6 +1445,7 @@ const engine = {
   segmentLog: [], // {name, phase, setNumber, totalSets, status, plannedSeconds, actualSeconds, exerciseKey?, weight?, targetReps?, rir?}
   lastEnteredWeight: {}, // exerciseKey -> weight typed this workout, carried forward set-to-set
   workoutStartWallClock: 0,
+  durationOverride: null, // this-run-only rest length adjustment; never written to the saved preset
   awaitingInstruction: false,
   workoutName: ''
 };
@@ -1425,7 +1463,7 @@ function recordSegmentOutcome(status) {
     setNumber: seg.setNumber,
     totalSets: seg.totalSets,
     status,
-    plannedSeconds: estimateSegmentSeconds(seg),
+    plannedSeconds: (seg.type === 'time' && engine.durationOverride != null) ? engine.durationOverride : estimateSegmentSeconds(seg),
     actualSeconds: Math.max(0, Math.round(elapsedMs / 1000))
   };
   if (seg.exerciseKey) entry.exerciseKey = seg.exerciseKey;
@@ -1467,6 +1505,8 @@ function startWorkout() {
   engine.elapsedPlannedSeconds = 0;
 
   el.startBtn.classList.add('hidden');
+  el.repeatLastBtn.classList.add('hidden');
+  el.resumeBanner.classList.add('hidden');
   el.controlsRow.classList.remove('hidden');
   requestWakeLock();
   if (settings.voiceCommands) startVoiceRecognition();
@@ -1487,7 +1527,10 @@ function stopWorkout(save) {
   el.nextUp.classList.add('hidden');
   el.weightLogRow.style.display = 'none';
   el.overlay.classList.remove('active');
+  el.restAdjustRow.classList.remove('active');
+  el.skipBtn.textContent = '⏭ SKIP';
   hideRirPrompt();
+  clearResumeState();
 
   if (save && (engine.currentLog.length > 0 || engine.segmentLog.length > 0)) {
     const durationSeconds = engine.workoutStartWallClock
@@ -1506,7 +1549,7 @@ function stopWorkout(save) {
   }
 
   el.exerciseName.textContent = 'Ready to start';
-  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  updateIdleScreen();
   el.setIndicator.textContent = '';
   el.bigTimer.textContent = '00:00';
   setPhaseUI('idle');
@@ -1584,6 +1627,31 @@ $$('#rir-prompt-buttons button').forEach(btn => {
 });
 el.rirDismissBtn.addEventListener('click', debounceClick(hideRirPrompt));
 
+/* ---- Dynamic rest adjustment: this-run-only unless explicitly saved. ---- */
+function currentEffectiveRestDuration() {
+  const seg = engine.segments[engine.index];
+  if (!seg) return 0;
+  return engine.durationOverride != null ? engine.durationOverride : seg.duration;
+}
+function adjustRest(deltaSeconds) {
+  if (!engine.isRunning) return;
+  const seg = engine.segments[engine.index];
+  if (!seg || seg.phase !== 'rest') return;
+  const elapsedSec = ((performance.now() - engine.segStartTs) - engine.pausedAccumMs) / 1000;
+  const newDuration = Math.max(Math.ceil(elapsedSec), currentEffectiveRestDuration() + deltaSeconds);
+  engine.durationOverride = newDuration;
+  showToast((deltaSeconds > 0 ? '+15s' : '-15s') + ' rest (this workout only)', 1500);
+}
+$('#rest-minus-btn').addEventListener('click', debounceClick(() => adjustRest(-15)));
+$('#rest-plus-btn').addEventListener('click', debounceClick(() => adjustRest(15)));
+$('#rest-save-btn').addEventListener('click', debounceClick(() => {
+  const seg = engine.segments[engine.index];
+  if (!seg || seg.phase !== 'rest' || engine.durationOverride == null) { showToast('Adjust the rest first, then save.'); return; }
+  seg.duration = engine.durationOverride; // this IS the live preset segment -- explicit opt-in only
+  saveJSON(LS_KEYS.presets, presets);
+  showToast('Saved ' + formatDuration(seg.duration) + ' as this rest’s default in the preset');
+}));
+
 function advanceToNextSegment() {
   window.speechSynthesis && window.speechSynthesis.cancel();
   if (engine.index >= 0) {
@@ -1600,10 +1668,21 @@ function advanceToNextSegment() {
   engine.midpointFired = false;
   engine.pausedAccumMs = 0;
   engine.segStartTs = performance.now();
+  engine.durationOverride = null;
 
   updatePhasePillAndCard(seg);
   updateNextUpLabel();
   updateOverallProgress();
+  saveResumeState();
+
+  // Rest can be adjusted on the fly (+/-15s) without touching the saved preset.
+  if (seg.phase === 'rest' && seg.type === 'time') {
+    el.restAdjustRow.classList.add('active');
+    el.skipBtn.textContent = '✓ READY';
+  } else {
+    el.restAdjustRow.classList.remove('active');
+    el.skipBtn.textContent = '⏭ SKIP';
+  }
 
   if (seg.type === 'instruction') {
     if (!settings.instructionsEnabled || settings.skipInstructionFuture) {
@@ -1690,7 +1769,10 @@ function updateNextUpLabel() {
   const next = engine.segments[engine.index + 1];
   if (!next) { el.nextUp.classList.add('hidden'); return; }
   el.nextUp.classList.remove('hidden');
-  el.nextUpName.textContent = next.type === 'instruction' ? next.name + ' (form check)' : next.name;
+  let label = next.type === 'instruction' ? next.name + ' (form check)' : next.name;
+  if (next.type === 'time') label += ' — ' + formatDuration(next.duration);
+  else if (next.type === 'reps') label += ' — ' + next.reps + ' reps';
+  el.nextUpName.textContent = label;
 }
 
 function updateOverallProgress() {
@@ -1729,10 +1811,11 @@ function tick() {
   const elapsedSec = elapsedMs / 1000;
 
   if (seg.type === 'time') {
-    const remaining = seg.duration - elapsedSec;
-    renderTimeRemaining(remaining, seg.duration);
+    const effectiveDuration = engine.durationOverride != null ? engine.durationOverride : seg.duration;
+    const remaining = effectiveDuration - elapsedSec;
+    renderTimeRemaining(remaining, effectiveDuration);
 
-    if (seg.midpointMsg && !engine.midpointFired && elapsedSec >= seg.duration / 2) {
+    if (seg.midpointMsg && !engine.midpointFired && elapsedSec >= effectiveDuration / 2) {
       engine.midpointFired = true;
       speak(seg.midpointMsg);
     }
@@ -2156,7 +2239,7 @@ $('#library-close-btn').addEventListener('click', debounceClick(() => {
 $('#preset-select').addEventListener('change', e => {
   activePresetName = e.target.value;
   localStorage.setItem(LS_KEYS.activePreset, activePresetName);
-  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  updateIdleScreen();
   renderBuilder();
 });
 
@@ -2949,15 +3032,147 @@ $('#clear-walks-btn').addEventListener('click', debounceClick(() => {
 }));
 
 /* ============================================================
+   SECTION 16.7: WORKOUT PREVIEW + REPEAT LAST WORKOUT
+============================================================ */
+function computeWorkoutPreview(segs) {
+  const buckets = { warmup: 0, strength: 0, rest: 0, cooldown: 0 };
+  const exerciseKeys = new Set();
+  let setCount = 0;
+  segs.forEach(s => {
+    const dur = estimateSegmentSeconds(s);
+    if (s.phase === 'warmup') buckets.warmup += dur;
+    else if (s.phase === 'rest') buckets.rest += dur;
+    else if (s.phase === 'cooldown') buckets.cooldown += dur;
+    else if (s.phase === 'strength') {
+      buckets.strength += dur;
+      if (s.type === 'time' && s.exerciseKey) { setCount++; exerciseKeys.add(s.exerciseKey); }
+    }
+  });
+  const totalSec = buckets.warmup + buckets.strength + buckets.rest + buckets.cooldown;
+  return { totalSec, exerciseCount: exerciseKeys.size, setCount, buckets };
+}
+
+function updateIdleScreen() {
+  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  renderWorkoutPreview();
+  renderRepeatLastButton();
+}
+
+function renderWorkoutPreview() {
+  const segs = presets[activePresetName];
+  if (!segs || !segs.length) { el.workoutPreview.innerHTML = ''; return; }
+  const p = computeWorkoutPreview(segs);
+  const mins = Math.round(p.totalSec / 60);
+  const parts = [];
+  if (p.buckets.warmup) parts.push(`<span>Warmup <b>${formatDuration(p.buckets.warmup)}</b></span>`);
+  if (p.buckets.strength) parts.push(`<span>Strength <b>${formatDuration(p.buckets.strength)}</b></span>`);
+  if (p.buckets.rest) parts.push(`<span>Rest <b>${formatDuration(p.buckets.rest)}</b></span>`);
+  if (p.buckets.cooldown) parts.push(`<span>Cooldown <b>${formatDuration(p.buckets.cooldown)}</b></span>`);
+  el.workoutPreview.innerHTML = `<div class="wp-summary">${mins} min · ${p.exerciseCount} exercise${p.exerciseCount === 1 ? '' : 's'} · ${p.setCount} set${p.setCount === 1 ? '' : 's'}</div>
+    <div class="wp-breakdown">${parts.join('')}</div>`;
+}
+
+function renderRepeatLastButton() {
+  if (!history.length || !history[0].workoutName || !presets[history[0].workoutName]) {
+    el.repeatLastBtn.classList.add('hidden');
+    return;
+  }
+  const last = history[0];
+  const segs = presets[last.workoutName];
+  const p = computeWorkoutPreview(segs);
+  const mins = Math.round(p.totalSec / 60);
+  el.repeatLastBtn.textContent = '🔁 Repeat Last Workout — ' + last.workoutName + ' (' + mins + ' min · ' + p.exerciseCount + ' exercises)';
+  el.repeatLastBtn.dataset.presetName = last.workoutName;
+  el.repeatLastBtn.classList.remove('hidden');
+}
+el.repeatLastBtn.addEventListener('click', debounceClick(() => {
+  const name = el.repeatLastBtn.dataset.presetName;
+  if (!name || !presets[name]) return;
+  activePresetName = name;
+  localStorage.setItem(LS_KEYS.activePreset, activePresetName);
+  updateIdleScreen();
+  startWorkout();
+}));
+
+/* ============================================================
+   SECTION 16.8: RESUME WORKOUT
+   Saved at every segment transition so an accidental reload/close
+   mid-workout can be picked back up at the right exercise/set. Does
+   not attempt to preserve exact time-remaining within a segment --
+   resuming restarts that segment's timer, trading precision for
+   reliability across a real page reload.
+============================================================ */
+function saveResumeState() {
+  if (!engine.isRunning) return;
+  saveJSON(LS_KEYS.resumeState, {
+    presetName: engine.workoutName,
+    index: engine.index,
+    currentLog: engine.currentLog,
+    segmentLog: engine.segmentLog,
+    lastEnteredWeight: engine.lastEnteredWeight,
+    workoutStartWallClock: engine.workoutStartWallClock,
+    savedAt: Date.now()
+  });
+}
+function clearResumeState() {
+  localStorage.removeItem(LS_KEYS.resumeState);
+}
+
+let pendingResume = null;
+function checkForResumableWorkout() {
+  const saved = loadJSON(LS_KEYS.resumeState, null);
+  if (!saved || !presets[saved.presetName]) { if (saved) clearResumeState(); return; }
+  const segs = presets[saved.presetName];
+  if (saved.index < 0 || saved.index >= segs.length) { clearResumeState(); return; }
+  const seg = segs[saved.index];
+  pendingResume = saved;
+  el.resumeBannerTitle.textContent = saved.presetName;
+  el.resumeBannerDetail.textContent = seg.name + (seg.setNumber ? ' — Set ' + seg.setNumber + ' of ' + seg.totalSets : '');
+  el.resumeBanner.classList.remove('hidden');
+}
+
+$('#resume-workout-btn').addEventListener('click', debounceClick(() => {
+  if (!pendingResume || !presets[pendingResume.presetName]) { el.resumeBanner.classList.add('hidden'); return; }
+  const saved = pendingResume;
+  el.resumeBanner.classList.add('hidden');
+  activePresetName = saved.presetName;
+  const segs = presets[activePresetName];
+  engine.segments = segs;
+  engine.index = saved.index - 1; // advanceToNextSegment() below bumps it to saved.index
+  engine.isRunning = true;
+  engine.isPaused = false;
+  engine.currentLog = saved.currentLog || [];
+  engine.segmentLog = saved.segmentLog || [];
+  engine.lastEnteredWeight = saved.lastEnteredWeight || {};
+  engine.workoutName = activePresetName;
+  engine.workoutStartWallClock = saved.workoutStartWallClock || Date.now();
+  engine.totalPlannedSeconds = segs.reduce((sum, s) => sum + estimateSegmentSeconds(s), 0) || 1;
+  engine.elapsedPlannedSeconds = segs.slice(0, Math.max(0, saved.index)).reduce((sum, s) => sum + estimateSegmentSeconds(s), 0);
+  el.startBtn.classList.add('hidden');
+  el.repeatLastBtn.classList.add('hidden');
+  el.controlsRow.classList.remove('hidden');
+  requestWakeLock();
+  if (settings.voiceCommands) startVoiceRecognition();
+  advanceToNextSegment();
+  startTickLoop();
+}));
+$('#resume-start-over-btn').addEventListener('click', debounceClick(() => {
+  clearResumeState();
+  pendingResume = null;
+  el.resumeBanner.classList.add('hidden');
+}));
+
+/* ============================================================
    SECTION 17: INIT
 ============================================================ */
 function init() {
   initSettingsUI();
   renderPresetSelect();
   renderHistory();
-  el.segmentSub.textContent = 'Tap START WORKOUT to begin the ' + activePresetName;
+  updateIdleScreen();
   setPhaseUI('idle');
   updateRing(0);
+  checkForResumableWorkout();
 
   $('#walk-units-' + walkUnits).checked = true;
   renderWalkStats();
